@@ -1,0 +1,28 @@
+{
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "C/C++: arm-none-eabi-g++ アクティブなファイルのビルド",
+            "command": "C:/devkitPro/devkitARM/bin/arm-none-eabi-g++",
+            "args": [
+                "-fdiagnostics-color=always",
+                "-g",
+                "${file}",
+                "-o",
+                "${fileDirname}\\${fileBasenameNoExtension}.exe"
+            ],
+            "options": {
+                "cwd": "C:/devkitPro/devkitARM/bin"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "デバッガーによって生成されたタスク。"
+        }
+    ],
+    "version": "2.0.0"
+}

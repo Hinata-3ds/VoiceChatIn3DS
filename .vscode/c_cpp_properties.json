@@ -1,0 +1,36 @@
+{
+    "env": {
+        "devkitpro": "C:/devkitPro",
+        "devkitarm": "${devkitpro}/devkitARM",
+        "ctrulib": "${devkitpro}/libctru",
+        "ctrpflib": "${devkitpro}/libctrpf"
+    },
+    "configurations": [
+        {
+            "name": "Library",
+            "includePath": [
+                "${workspaceFolder}/Includes/**",
+                "${ctrulib}/include/**",
+                "${ctrpflib}/include/**"
+            ],
+            "defines": [
+                "ARM11",
+                "_3DS"
+            ],
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/Includes/**",
+                    "${ctrpflib}/include/**",
+                    "${ctrulib}/include/**"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            },
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "compilerPath": "${devkitarm}/bin/arm-none-eabi-g++",
+            "intelliSenseMode": "gcc-arm"
+        }
+    ],
+    "version": 4
+}
