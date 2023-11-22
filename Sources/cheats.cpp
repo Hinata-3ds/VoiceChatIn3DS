@@ -11,7 +11,7 @@
 #define BUFFER_SIZE 4096
 #define SOC_ALIGN  0x1000
 #define PORT 59678
-#define SERVER_IP "127.0.0.1" // サーバーのIPアドレスに置き換える
+#define SERVER_IP "192.168.1.100" // サーバーのIPアドレスに置き換える
 u32 processMemoryAddr = 0x6500000;
 
 namespace CTRPluginFramework
@@ -27,26 +27,6 @@ namespace CTRPluginFramework
         }
 
         // ソケットの作成
-        u32 *socBuffer;
-        u32  socBufferSize = 0x1000; // 0x1000（ページサイズ）のバッファサイズを指定
-
-        // SOCバッファの確保
-        Result memResult = svcControlMemoryUnsafe(socBuffer, processMemoryAddr, socBufferSize, MEMOP_ALLOC, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
-        if (R_FAILED(memResult)) {
-            OSD::Notify(Utils::Format("Error allocating memory: %08X\n", memResult));
-            return;
-        }
-
-        // SOCサービスの初期化
-        Result socResult = socInit(socBuffer, socBufferSize);
-        if (R_FAILED(socResult)) {
-            OSD::Notify(Utils::Format("Error initializing SOC service: %08X\n", socResult));
-
-            // SOCバッファの解放
-            svcControlMemoryUnsafe(reinterpret_cast<u32 *>(socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
-            return;
-        }
-        
         int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
         if (sockfd == -1) {
             OSD::Notify("Error creating socket");
@@ -59,6 +39,13 @@ namespace CTRPluginFramework
         serverAddr.sin_family = AF_INET;
         serverAddr.sin_port = htons(PORT);
         serverAddr.sin_addr.s_addr = inet_addr(SERVER_IP);
+
+        // サーバーに接続
+        if (connect(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+            OSD::Notify("Connection failed");
+            close(sockfd);
+            return;
+        }
 
         // マイクのサンプリング開始
         MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
@@ -79,7 +66,7 @@ namespace CTRPluginFramework
                 memcpy(micBuffer, micBuffer + lastSampleOffset, sampleDataSize);
 
                 // サーバーにデータを送信
-                ssize_t sentBytes = sendto(sockfd, micBuffer, sampleDataSize, 0, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+                ssize_t sentBytes = send(sockfd, micBuffer, sampleDataSize, 0);
 
                 if (sentBytes == -1) {
                     OSD::Notify("Error sending data");
@@ -104,34 +91,27 @@ namespace CTRPluginFramework
 
         // マイクのサンプリング停止
         MICU_StopSampling();
-        Result socExitResult = socExit();
-        if (R_FAILED(socExitResult)) {
-            OSD::Notify(Utils::Format("Error closing SOC service: %08X\n", socExitResult));
+    }
+
+    void VoiceChatServer(MenuEntry *entry) {
+        u32 *socBuffer;
+        u32 socBufferSize = 0x100000;
+        Result ret = 0;
+        ret = svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        if (R_FAILED(ret)) {
+            MessageBox(Utils::Format("Error allocating memory: %08X\n", ret))();
             return;
         }
 
-        // SOCバッファの解放
-        Result memFreeResult = svcControlMemoryUnsafe(reinterpret_cast<u32 *>(socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
-        if (R_FAILED(memFreeResult)) {
-            OSD::Notify(Utils::Format("Error freeing memory: %08X\n", memFreeResult));
+        ret = socInit(socBuffer, socBufferSize);
+        if (R_FAILED(ret)) {
+            socExit();
+            MessageBox(Utils::Format("Error initializing SOC service: %08X\n", ret))();
+            svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
             return;
         }
-    }
-    void VoiceChatServer(MenuEntry *entry) {
-        u32 *socBuffer;
-        u32 socBufferSize = 0x1000;
-        Result memResult = svcControlMemoryUnsafe(reinterpret_cast<u32 *>(&socBuffer), processMemoryAddr, socBufferSize,static_cast<MemOp>(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
-        MessageBox("メモリ確保成功")();
-        if (R_FAILED(memResult)) {
-            MessageBox(Utils::Format("Error allocating memory: %08X\n", memResult))();
-            return;
-        }
-        Result socInitResult = socInit(reinterpret_cast<u32 *>(&socBuffer), socBufferSize);
-        if (R_FAILED(socInitResult)) {
-            MessageBox(Utils::Format("Error initializing SOC service: %08X\n", socInitResult))();
-            svcControlMemoryUnsafe(reinterpret_cast<u32 *>(&socBuffer), processMemoryAddr, socBufferSize, static_cast<MemOp>(MEMOP_FREE | MEMOP_REGION_SYSTEM), static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
-            return;
-        }
+        else
+            MessageBox("socInit success")();
 
         // ソケットの作成
         int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -140,6 +120,8 @@ namespace CTRPluginFramework
             svcControlMemoryUnsafe(socBuffer, processMemoryAddr, socBufferSize, static_cast<MemOp>(MEMOP_FREE | MEMOP_REGION_SYSTEM), static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
             return;
         }
+        else
+            MessageBox("Socket creation successful!")();
 
         struct sockaddr_in serverAddr;
         memset(&serverAddr, 0, sizeof(serverAddr));
@@ -148,28 +130,23 @@ namespace CTRPluginFramework
         serverAddr.sin_addr.s_addr = INADDR_ANY;
 
         if (bind(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
-            OSD::Notify("Error binding socket");
+            MessageBox("Error binding socket")();
             close(sockfd);
             return;
         }
-
-        if (listen(sockfd, 5) == -1) {
-            OSD::Notify("Error listening");
-            close(sockfd);
-            return;
-        }
+        else
+            MessageBox("Binding successful!")();
 
         struct sockaddr_in clientAddr;
         socklen_t clientLen = sizeof(clientAddr);
         int new_sockfd = accept(sockfd, (struct sockaddr *)&clientAddr, &clientLen);
         if (new_sockfd == -1) {
-            OSD::Notify("Error accepting connection");
+            MessageBox("Error accepting connection")();
             close(sockfd);
             return;
         }
 
-        OSD::Notify("Connection established");
-
+        MessageBox("Connection established")();
 
         close(new_sockfd);
         close(sockfd);
