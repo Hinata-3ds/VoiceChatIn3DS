@@ -31,7 +31,7 @@ namespace CTRPluginFramework
         u32 socBufferSize = 0x1000; // 0x1000（ページサイズ）のバッファサイズを指定
 
         // SOCバッファの確保
-        Result memResult = svcControlMemoryUnsafe(reinterpret_cast<u32 *>(&socBuffer), processMemoryAddr, socBufferSize, MEMOP_ALLOC, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
+        Result memResult = svcControlMemoryUnsafe(socBuffer, processMemoryAddr, socBufferSize, MEMOP_ALLOC, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
         if (R_FAILED(memResult)) {
             OSD::Notify(Utils::Format("Error allocating memory: %08X\n", memResult));
             return;
