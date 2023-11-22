@@ -121,13 +121,14 @@ namespace CTRPluginFramework
         u32 *socBuffer;
         u32 socBufferSize = 0x1000;
         Result memResult = svcControlMemoryUnsafe(socBuffer, processMemoryAddr, socBufferSize, MEMOP_ALLOC, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
+        MessageBox("メモリ確保成功")();
         if (R_FAILED(memResult)) {
-            OSD::Notify(Utils::Format("Error allocating memory: %08X\n", memResult));
+            MessageBox(Utils::Format("Error allocating memory: %08X\n", memResult))();
             return;
         }
         Result socInitResult = socInit(reinterpret_cast<u32 *>(socBuffer), socBufferSize);
         if (R_FAILED(socInitResult)) {
-            OSD::Notify(Utils::Format("Error initializing SOC service: %08X\n", socInitResult));
+            MessageBox(Utils::Format("Error initializing SOC service: %08X\n", socInitResult))();
             svcControlMemoryUnsafe(reinterpret_cast<u32 *>(socBuffer), 0, socBufferSize, MEMOP_FREE, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
             return;
         }
@@ -135,7 +136,7 @@ namespace CTRPluginFramework
         // ソケットの作成
         int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
         if (sockfd == -1) {
-            OSD::Notify("Error creating socket");
+            MessageBox("Error creating socket")();
             svcControlMemoryUnsafe(reinterpret_cast<u32 *>(socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
             return;
         }
