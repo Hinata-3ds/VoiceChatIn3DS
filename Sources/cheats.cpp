@@ -28,7 +28,7 @@ namespace CTRPluginFramework
 
         // ソケットの作成
         u32 *socBuffer;
-        u32 socBufferSize = 0x1000; // 0x1000（ページサイズ）のバッファサイズを指定
+        u32  socBufferSize = 0x1000; // 0x1000（ページサイズ）のバッファサイズを指定
 
         // SOCバッファの確保
         Result memResult = svcControlMemoryUnsafe(socBuffer, processMemoryAddr, socBufferSize, MEMOP_ALLOC, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
@@ -120,16 +120,16 @@ namespace CTRPluginFramework
     void VoiceChatServer(MenuEntry *entry) {
         u32 *socBuffer;
         u32 socBufferSize = 0x1000;
-        Result memResult = svcControlMemoryUnsafe(socBuffer, processMemoryAddr, socBufferSize, MEMOP_ALLOC, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
+        Result memResult = svcControlMemoryUnsafe(socBuffer, processMemoryAddr, socBufferSize,static_cast<MemOp>(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
         MessageBox("メモリ確保成功")();
         if (R_FAILED(memResult)) {
             MessageBox(Utils::Format("Error allocating memory: %08X\n", memResult))();
             return;
         }
-        Result socInitResult = socInit(reinterpret_cast<u32 *>(socBuffer), socBufferSize);
+        Result socInitResult = socInit(socBuffer, socBufferSize);
         if (R_FAILED(socInitResult)) {
             MessageBox(Utils::Format("Error initializing SOC service: %08X\n", socInitResult))();
-            svcControlMemoryUnsafe(reinterpret_cast<u32 *>(socBuffer), 0, socBufferSize, MEMOP_FREE, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
+            svcControlMemoryUnsafe(socBuffer, processMemoryAddr, socBufferSize, static_cast<MemOp>(MEMOP_FREE | MEMOP_REGION_SYSTEM), static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
             return;
         }
 
@@ -137,7 +137,7 @@ namespace CTRPluginFramework
         int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
         if (sockfd == -1) {
             MessageBox("Error creating socket")();
-            svcControlMemoryUnsafe(reinterpret_cast<u32 *>(socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
+            svcControlMemoryUnsafe(socBuffer, processMemoryAddr, socBufferSize, static_cast<MemOp>(MEMOP_FREE | MEMOP_REGION_SYSTEM), static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
             return;
         }
 
