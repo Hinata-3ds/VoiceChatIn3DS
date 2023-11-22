@@ -12,7 +12,7 @@
 #define SOC_ALIGN  0x1000
 #define PORT 59678
 #define SERVER_IP "127.0.0.1" // サーバーのIPアドレスに置き換える
-u32 processMemoryAddr = 0x4000000;
+u32 processMemoryAddr = 0x6500000;
 
 namespace CTRPluginFramework
 {
@@ -120,7 +120,7 @@ namespace CTRPluginFramework
     void VoiceChatServer(MenuEntry *entry) {
         u32 *socBuffer;
         u32 socBufferSize = 0x1000;
-        Result memResult = svcControlMemoryUnsafe(reinterpret_cast<u32 *>(&socBuffer), processMemoryAddr, socBufferSize, MEMOP_ALLOC, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
+        Result memResult = svcControlMemoryUnsafe(socBuffer, processMemoryAddr, socBufferSize, MEMOP_ALLOC, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
         if (R_FAILED(memResult)) {
             OSD::Notify(Utils::Format("Error allocating memory: %08X\n", memResult));
             return;
