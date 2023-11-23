@@ -8,6 +8,8 @@
 #include "csvc.h"
 #include "C:/devkitPro/libctru/include/3ds/services/mic.h"
 
+#define BUFFER_SIZE 4096
+#define SOC_ALIGN  0x1000
 #define PORT 5000
 //#define SERVER_IP "127.0.0.1" 
 u32 processMemoryAddr = 0x6500000;
@@ -56,20 +58,20 @@ void VoiceChatServerLoop(void *arg) {
 }
 
 void VoiceChatClientLoop(void *arg) {
-    //int sockfd = *(static_cast<int *>(arg));
+    int sockfd = *(static_cast<int *>(arg));
 
-    //u8 micBuffer[BUFFER_SIZE] __attribute__((aligned(0x1000)));
+    u8 micBuffer[BUFFER_SIZE] __attribute__((aligned(0x1000)));
 
     // 音声の取得
-    // Result micResult = micInit(micBuffer, BUFFER_SIZE);
-    // if (R_FAILED(micResult)) {
-    //     MessageBox(Utils::Format("Error initializing microphone: %08X\n", micResult))();
-    //     close(sockfd);
-    //     return;
-    // }
+    Result micResult = micInit(micBuffer, BUFFER_SIZE);
+    if (R_FAILED(micResult)) {
+        MessageBox(Utils::Format("Error initializing microphone: %08X\n", micResult))();
+        close(sockfd);
+        return;
+    }
 
     // マイクのサンプリング開始
-    //MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
+    MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
 
     bool isRunning = true;
     while (isRunning) {
@@ -78,26 +80,27 @@ void VoiceChatClientLoop(void *arg) {
         // Bボタンが押されているかどうかを確認
         if (Controller::IsKeyDown(Key::B)) {
             // マイクから音声データを読み取り
-            // u32 sampleDataSize = micGetSampleDataSize();
-            // u32 lastSampleOffset = micGetLastSampleOffset();
-            //memcpy(micBuffer, micBuffer + lastSampleOffset, sampleDataSize);
+            u32 sampleDataSize = micGetSampleDataSize();
+            u32 lastSampleOffset = micGetLastSampleOffset();
+            memcpy(micBuffer, micBuffer + lastSampleOffset, sampleDataSize);
 
             // サーバーに音声データを送信
-            //ssize_t sentBytes = send(sockfd, micBuffer, sampleDataSize, 0);
+            ssize_t sentBytes = send(sockfd, micBuffer, sampleDataSize, 0);
 
-            // if (sentBytes == -1) {
-            //     MessageBox("Error sending data")();
-            // }
-        } else {
+            if (sentBytes == -1) {
+                MessageBox("Error sending data")();
+            }
+        } 
+        if(Controller::IsKeyReleased(Key::B)) {
             // Bボタンが離されたらマイクのサンプリング停止
-            //MICU_StopSampling();
+            MICU_StopSampling();
             isRunning = false; // ボタンが離されたらループを終了
         }
     }
 
-    //MICU_StopSampling();
-    //micExit();
-    //close(sockfd);
+    MICU_StopSampling();
+    micExit();
+    close(sockfd);
 }
 
 void ConnectToServer() {
@@ -199,7 +202,7 @@ void VoiceChatServer(MenuEntry *entry) {
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(PORT);
-    serverAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str()); 
+    serverAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str()); // 
 
     if (bind(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
         MessageBox("Error binding socket")();
