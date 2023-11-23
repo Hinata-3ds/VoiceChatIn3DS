@@ -11,7 +11,7 @@
 #define BUFFER_SIZE 4096
 #define SOC_ALIGN  0x1000
 #define PORT 5000
-#define SERVER_IP "127.0.0.1" // サーバーのIPアドレスに置き換える
+//#define SERVER_IP "127.0.0.1" 
 u32 processMemoryAddr = 0x6500000;
 
 namespace CTRPluginFramework
