@@ -216,10 +216,7 @@ void VoiceChatServer(MenuEntry *entry) {
     // スレッドを作成し、ループ関数を実行
     ThreadEx serverThread(VoiceChatServerLoop, 4096, 0x30, -1);
     serverThread.Start(&sockfd);
-
-    // 何か追加の処理があればここに記述
-
-    // ソケットをクローズしないようにするか、スレッドが終了するまで待機する必要があります
+    
     // close(sockfd);
     //serverThread.Join(true);
 }
