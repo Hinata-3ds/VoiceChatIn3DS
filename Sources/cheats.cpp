@@ -79,19 +79,26 @@ void VoiceChatClientLoop(void *arg) {
 
         // Bボタンが押されているかどうかを確認
         if (Controller::IsKeyDown(Key::B)) {
-            // マイクから音声データを読み取り
             u32 sampleDataSize = micGetSampleDataSize();
             u32 lastSampleOffset = micGetLastSampleOffset();
             memcpy(micBuffer, micBuffer + lastSampleOffset, sampleDataSize);
 
-            // サーバーに音声データを送信
-            ssize_t sentBytes = send(sockfd, micBuffer, sampleDataSize, 0);
+            // LEDを虹色に設定するパターンを生成
+            RGBLedPattern rainbowPattern = LED::GeneratePattern(LED_Color(255, 0, 0), LED_PatType::ASCENDENT, 0.1f, 0.0f, 1, 2, 2, 2);
+            // LEDのパターンを再生
+            LED::PlayLEDPattern(rainbowPattern);
 
+            // マイクから音声データを読み取り、サーバーに送信するコード
+            // ...
+
+            ssize_t sentBytes = send(sockfd, micBuffer, sampleDataSize, 0);
             if (sentBytes == -1) {
                 MessageBox("Error sending data")();
             }
-        } 
-        if(Controller::IsKeyReleased(Key::B)) {
+        } else {
+            // Bボタンが離されたらLEDのパターンを停止
+            LED::StopLEDPattern();
+
             // Bボタンが離されたらマイクのサンプリング停止
             MICU_StopSampling();
             isRunning = false; // ボタンが離されたらループを終了
