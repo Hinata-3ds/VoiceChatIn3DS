@@ -86,7 +86,7 @@ exit:
     {
         MenuFolder* folder = new MenuFolder("システム");
             *folder += new MenuEntry("Server", nullptr, VoiceChatServer);
-            *folder += new MenuEntry("Client", VoiceChatClient);
+            *folder += new MenuEntry("Client", nullptr, VoiceChatClient);
         menu += folder;
     }
 
