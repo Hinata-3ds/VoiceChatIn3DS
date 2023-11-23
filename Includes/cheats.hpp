@@ -5,6 +5,9 @@
 #include "Helpers.hpp"
 #include "Unicode.h"
 
+extern const u32 MIC_BUFFER_ADDR;
+extern const u32 MIC_BUFFER_SIZE;
+
 namespace CTRPluginFramework
 {
     using StringVector = std::vector<std::string>;

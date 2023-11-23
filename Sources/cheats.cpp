@@ -13,6 +13,8 @@
 #define PORT 5000
 //#define SERVER_IP "127.0.0.1" 
 u32 processMemoryAddr = 0x6500000;
+  constexpr u32 MIC_BUFFER_ADDR = 0x6510000;
+  constexpr u32 MIC_BUFFER_SIZE = 0x10000;
 
 namespace CTRPluginFramework
 {
@@ -52,61 +54,68 @@ void VoiceChatServerLoop(void *arg) {
         }
     }
 
-    MessageBox("Connection established")();
+    OSD::Notify("Connection established",Color::LimeGreen);
 
     close(new_sockfd);
 }
 
 void VoiceChatClientLoop(void *arg) {
     int sockfd = *(static_cast<int *>(arg));
+    bool initialized = true;
 
-    u8 micBuffer[BUFFER_SIZE] __attribute__((aligned(0x1000)));
+    static u8 *micbuf = nullptr;
+    Result ret = RL_SUCCESS;
 
-    // 音声の取得
-    Result micResult = micInit(micBuffer, BUFFER_SIZE);
+    if (micbuf == nullptr) {
+        ret = svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        if (R_FAILED(ret)) {
+            MessageBox("Error allocating memory for mic buffer")();
+            close(sockfd);
+            return;
+        }
+    }
+
+    // マイクの初期化
+    Result micResult = micInit(micbuf, MIC_BUFFER_SIZE);
     if (R_FAILED(micResult)) {
         MessageBox(Utils::Format("Error initializing microphone: %08X\n", micResult))();
+        svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         close(sockfd);
         return;
     }
-
-    // マイクのサンプリング開始
-    MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
+    else {
+        OSD::Notify("microphone successful!");
+        MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
+    }
 
     bool isRunning = true;
+    RGBLedPattern rainbowPattern = LED::GeneratePattern(LED_Color(255, 0, 0), LED_PatType::ASCENDENT, 0.1f, 0.0f, 1, 2, 2, 2);
     while (isRunning) {
         Controller::Update();
 
-        // Bボタンが押されているかどうかを確認
         if (Controller::IsKeyDown(Key::B)) {
             u32 sampleDataSize = micGetSampleDataSize();
             u32 lastSampleOffset = micGetLastSampleOffset();
-            memcpy(micBuffer, micBuffer + lastSampleOffset, sampleDataSize);
+            
+            // 新しいマイクバッファにデータをコピー
+            memcpy(micbuf, micbuf + lastSampleOffset, sampleDataSize);
 
-            // LEDを虹色に設定するパターンを生成
-            RGBLedPattern rainbowPattern = LED::GeneratePattern(LED_Color(255, 0, 0), LED_PatType::ASCENDENT, 0.1f, 0.0f, 1, 2, 2, 2);
-            // LEDのパターンを再生
             LED::PlayLEDPattern(rainbowPattern);
 
-            // マイクから音声データを読み取り、サーバーに送信するコード
-            // ...
-
-            ssize_t sentBytes = send(sockfd, micBuffer, sampleDataSize, 0);
+            ssize_t sentBytes = send(sockfd, micbuf, sampleDataSize, 0);
             if (sentBytes == -1) {
                 MessageBox("Error sending data")();
             }
         } else {
-            // Bボタンが離されたらLEDのパターンを停止
             LED::StopLEDPattern();
-
-            // Bボタンが離されたらマイクのサンプリング停止
             MICU_StopSampling();
-            isRunning = false; // ボタンが離されたらループを終了
+            isRunning = false;
         }
     }
 
     MICU_StopSampling();
     micExit();
+    svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
     close(sockfd);
 }
 
@@ -149,7 +158,7 @@ void ConnectToServer() {
         ThreadEx clientThread(VoiceChatClientLoop, 4096, 0x30, -1);
         clientThread.Start(&sockfd);
 
-    // 接続成功時の処理など
+    // 接続成功時の処理、あとで
 }
 
 void VoiceChatClient(MenuEntry *entry) {
