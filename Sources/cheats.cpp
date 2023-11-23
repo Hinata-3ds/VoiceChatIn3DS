@@ -13,8 +13,8 @@
 #define PORT 5000
 //#define SERVER_IP "127.0.0.1" 
 u32 processMemoryAddr = 0x6500000;
-  constexpr u32 MIC_BUFFER_ADDR = 0x6510000;
-  constexpr u32 MIC_BUFFER_SIZE = 0x10000;
+constexpr u32 MIC_BUFFER_ADDR = 0x6510000;
+constexpr u32 MIC_BUFFER_SIZE = 0x10000;
 
 namespace CTRPluginFramework
 {
@@ -38,26 +38,6 @@ void InputIPAddress(MenuEntry *entry) {
 
 
 
-void VoiceChatServerLoop(void *arg) {
-    int sockfd = *reinterpret_cast<int*>(arg);
-
-    struct sockaddr_in clientAddr;
-    socklen_t clientLen = sizeof(clientAddr);
-    int new_sockfd;
-
-    // 接続が来るまで待機する
-    while ((new_sockfd = accept(sockfd, (struct sockaddr *)&clientAddr, &clientLen)) == -1) {
-        if (errno != EINTR) {
-            MessageBox("Error accepting connection")();
-            close(sockfd);
-            return;
-        }
-    }
-
-    OSD::Notify("Connection established",Color::LimeGreen);
-
-    close(new_sockfd);
-}
 
 void VoiceChatClientLoop(void *arg) {
     int sockfd = *(static_cast<int *>(arg));
@@ -105,6 +85,7 @@ void VoiceChatClientLoop(void *arg) {
             ssize_t sentBytes = send(sockfd, micbuf, sampleDataSize, 0);
             if (sentBytes == -1) {
                 MessageBox("Error sending data")();
+                isRunning = false;  // エラーが発生したらループを抜ける
             }
         } else {
             LED::StopLEDPattern();
@@ -113,10 +94,12 @@ void VoiceChatClientLoop(void *arg) {
         }
     }
 
+    // 通信が終わったらソケットをクローズ
+    close(sockfd);
+
     MICU_StopSampling();
     micExit();
     svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
-    close(sockfd);
 }
 
 void ConnectToServer() {
@@ -150,7 +133,6 @@ void ConnectToServer() {
 
     if (connect(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
         MessageBox("Error connecting to server")();
-        close(sockfd);
         return;
     }
     else
@@ -172,6 +154,57 @@ void VoiceChatClient(MenuEntry *entry) {
     ConnectToServer(); // 保存されたIPアドレスでサーバーに接続
     
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void VoiceChatServerLoop(void *arg) {
+    int sockfd = *reinterpret_cast<int*>(arg);
+
+    struct sockaddr_in clientAddr;
+    socklen_t clientLen = sizeof(clientAddr);
+    int new_sockfd;
+
+    // 接続が来るまで待機する
+    while ((new_sockfd = accept(sockfd, (struct sockaddr *)&clientAddr, &clientLen)) == -1) {
+        if (errno != EINTR) {
+            MessageBox("Error accepting connection")();
+            close(sockfd);
+            return;
+        }
+    }
+
+    OSD::Notify("Connection established", Color::LimeGreen);
+
+    // クライアントとの通信が終わったらソケットをクローズ
+    close(new_sockfd);
+}
+
+
+
+
+
+
+
+
 
 void VoiceChatServer(MenuEntry *entry) {
     Keyboard kb("Input IP Address");
