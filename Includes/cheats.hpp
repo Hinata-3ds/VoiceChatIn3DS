@@ -8,6 +8,7 @@
 namespace CTRPluginFramework
 {
     using StringVector = std::vector<std::string>;
+    void InputIPAddress( MenuEntry *entry );
     void VoiceChatServer( MenuEntry *entry );
     void VoiceChatClient( MenuEntry *entry );
 

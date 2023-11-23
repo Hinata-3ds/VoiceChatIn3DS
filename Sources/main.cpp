@@ -85,8 +85,9 @@ exit:
     void    InitMenu(PluginMenu &menu)
     {
         MenuFolder* folder = new MenuFolder("システム");
+            *folder += new MenuEntry("Input IP Address",nullptr,InputIPAddress),
             *folder += new MenuEntry("Server", nullptr, VoiceChatServer);
-            *folder += new MenuEntry("Client", nullptr, VoiceChatClient);
+            *folder += new MenuEntry("Client", VoiceChatClient);
         menu += folder;
     }
 

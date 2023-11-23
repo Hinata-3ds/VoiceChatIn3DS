@@ -8,14 +8,31 @@
 #include "csvc.h"
 #include "C:/devkitPro/libctru/include/3ds/services/mic.h"
 
-#define BUFFER_SIZE 4096
-#define SOC_ALIGN  0x1000
 #define PORT 5000
 //#define SERVER_IP "127.0.0.1" 
 u32 processMemoryAddr = 0x6500000;
 
 namespace CTRPluginFramework
 {
+
+std::string g_serverIP; 
+
+void InputIPAddress(MenuEntry *entry) {
+    Keyboard kb("Input Server IP Address");
+
+    std::string serverIP;
+    int result = kb.Open(serverIP);
+    if (result == -1 || result == -2) {
+        MessageBox("Canceled or Error occurred")();
+        return;
+    }
+
+    g_serverIP = serverIP; // 入力されたIPアドレスを保存
+    MessageBox("IP Address saved")();
+}
+
+
+
 
 void VoiceChatServerLoop(void *arg) {
     int sockfd = *reinterpret_cast<int*>(arg);
@@ -39,20 +56,20 @@ void VoiceChatServerLoop(void *arg) {
 }
 
 void VoiceChatClientLoop(void *arg) {
-    int sockfd = *(static_cast<int *>(arg));
+    //int sockfd = *(static_cast<int *>(arg));
 
-    u8 micBuffer[BUFFER_SIZE] __attribute__((aligned(0x1000)));
+    //u8 micBuffer[BUFFER_SIZE] __attribute__((aligned(0x1000)));
 
     // 音声の取得
-    Result micResult = micInit(micBuffer, BUFFER_SIZE);
-    if (R_FAILED(micResult)) {
-        MessageBox(Utils::Format("Error initializing microphone: %08X\n", micResult))();
-        close(sockfd);
-        return;
-    }
+    // Result micResult = micInit(micBuffer, BUFFER_SIZE);
+    // if (R_FAILED(micResult)) {
+    //     MessageBox(Utils::Format("Error initializing microphone: %08X\n", micResult))();
+    //     close(sockfd);
+    //     return;
+    // }
 
     // マイクのサンプリング開始
-    MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
+    //MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
 
     bool isRunning = true;
     while (isRunning) {
@@ -61,40 +78,29 @@ void VoiceChatClientLoop(void *arg) {
         // Bボタンが押されているかどうかを確認
         if (Controller::IsKeyDown(Key::B)) {
             // マイクから音声データを読み取り
-            u32 sampleDataSize = micGetSampleDataSize();
-            u32 lastSampleOffset = micGetLastSampleOffset();
-            memcpy(micBuffer, micBuffer + lastSampleOffset, sampleDataSize);
+            // u32 sampleDataSize = micGetSampleDataSize();
+            // u32 lastSampleOffset = micGetLastSampleOffset();
+            //memcpy(micBuffer, micBuffer + lastSampleOffset, sampleDataSize);
 
             // サーバーに音声データを送信
-            ssize_t sentBytes = send(sockfd, micBuffer, sampleDataSize, 0);
+            //ssize_t sentBytes = send(sockfd, micBuffer, sampleDataSize, 0);
 
-            if (sentBytes == -1) {
-                MessageBox("Error sending data")();
-            }
+            // if (sentBytes == -1) {
+            //     MessageBox("Error sending data")();
+            // }
         } else {
             // Bボタンが離されたらマイクのサンプリング停止
-            MICU_StopSampling();
+            //MICU_StopSampling();
             isRunning = false; // ボタンが離されたらループを終了
         }
     }
 
-    MICU_StopSampling();
-    micExit();
-    close(sockfd);
+    //MICU_StopSampling();
+    //micExit();
+    //close(sockfd);
 }
 
-void VoiceChatClient(MenuEntry *entry) {
-    Keyboard kb("Input Server IP Address");
-
-    // キーボードを開き、ユーザーにサーバーのIPアドレスを入力させる
-    std::string serverIP;
-    int result = kb.Open(serverIP);
-    if (result == -1 || result == -2) {
-        // キャンセルまたはエラーが発生した場合の処理
-        MessageBox("Canceled or Error occurred")();
-        return;
-    }
-
+void ConnectToServer() {
     u32 *socBuffer;
     u32 socBufferSize = 0x100000;
     Result ret = 0;
@@ -109,20 +115,19 @@ void VoiceChatClient(MenuEntry *entry) {
     else
         MessageBox("socInit success")();
     
-    // ソケットの作成
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
         MessageBox("Error creating socket")();
         return;
     }
     else
-        MessageBox("Socket creation successful!");
+        MessageBox("Socket creation successful!")();
 
     struct sockaddr_in serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(PORT);
-    serverAddr.sin_addr.s_addr = inet_addr(serverIP.c_str()); // 入力されたIPアドレスを設定
+    serverAddr.sin_addr.s_addr = inet_addr(g_serverIP.c_str()); // 保存されたIPアドレスを設定
 
     if (connect(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
         MessageBox("Error connecting to server")();
@@ -130,25 +135,24 @@ void VoiceChatClient(MenuEntry *entry) {
         return;
     }
     else
-        MessageBox("Connected to server!");
+        MessageBox("Connected to server!")();
+        ThreadEx clientThread(VoiceChatClientLoop, 4096, 0x30, -1);
+        clientThread.Start(&sockfd);
 
-    RGBLedPattern blueLED; // 青色の LED パターンを作成
+    // 接続成功時の処理など
+}
 
-    // 青色の LED パターンの設定
-    LED_Color blueColor(0, 0, 255); // 青色の RGB 値 (R:0, G:0, B:255)
-    float delay_time = 0.2f; // パターンの変化の遅延時間
-    float loop_delay = 0.5f; // パターンのループ遅延時間
-    blueLED = LED::GeneratePattern(blueColor, LED_PatType::CONSTANT, delay_time, loop_delay);
+void VoiceChatClient(MenuEntry *entry) {
 
-    // Bボタンが押されているかどうかを確認
-    ThreadEx clientThread(VoiceChatClientLoop, 4096, 0x30, -1);
-    clientThread.Start(&sockfd);
+    // IPアドレスが入力されていない場合は処理しない
+    if (g_serverIP.empty()) {
+        MessageBox("IP Address not provided")();
+        return;
+    }
 
-    // ソケットのクローズ
-    MICU_StopSampling();
-    micExit();
-    close(sockfd);
-}       
+    ConnectToServer(); // 保存されたIPアドレスでサーバーに接続
+    
+}
 
 void VoiceChatServer(MenuEntry *entry) {
     Keyboard kb("Input IP Address");
@@ -189,13 +193,13 @@ void VoiceChatServer(MenuEntry *entry) {
         return;
     }
     else
-        MessageBox("Socket creation successful!");
+        MessageBox("Socket creation successful!")();
 
     struct sockaddr_in serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(PORT);
-    serverAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str()); // 
+    serverAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str()); 
 
     if (bind(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
         MessageBox("Error binding socket")();
@@ -203,7 +207,7 @@ void VoiceChatServer(MenuEntry *entry) {
         return;
     }
     else
-        MessageBox("Binding successful!");
+        MessageBox("Binding successful!")();
 
     if (listen(sockfd, 1) == -1) {
         MessageBox("Error listening for connections")();
@@ -211,12 +215,12 @@ void VoiceChatServer(MenuEntry *entry) {
         return;
     }
     else
-        MessageBox("Listening now");
+        MessageBox("Listening now")();
 
     // スレッドを作成し、ループ関数を実行
     ThreadEx serverThread(VoiceChatServerLoop, 4096, 0x30, -1);
     serverThread.Start(&sockfd);
-    
+
     // close(sockfd);
     //serverThread.Join(true);
 }
