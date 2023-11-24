@@ -1,23 +1,9 @@
 #include <3ds.h>
 #include "csvc.h"
 #include <CTRPluginFramework.hpp>
-#include "CTRPluginFramework/System/FwkSettings.hpp"
-#include "CTRPluginFramework/Graphics/Color.hpp"
 #include "cheats.hpp"
-#include "C:/devkitPro/libctru/include/3ds/services/mic.h"
-
 #include <vector>
 
-#define BUFFER_SIZE 4096
-#define PORT 5000
-
-u8 *micBuffer = nullptr;
-u32 mic_buffer_addr = 0x3F00000;
-u32 mic_buffer_size = 0x30000;
-
-u32 *socBuffer = nullptr;
-u32 soc_buffer_addr = 0x6510000;
-u32 soc_buffer_Size = 0x100000;
 
 namespace CTRPluginFramework
 {
@@ -75,6 +61,14 @@ exit:
     {
         ToggleTouchscreenForceOn();
     }
+    static    u8 *micBuffer = nullptr;
+    constexpr u32 MIC_BUFFER_ADDR = 0x3F00000; //仮0x7520000;
+    constexpr u32 MIC_BUFFER_SIZE = 0x200000;
+
+
+    static    u32 *socBuffer = nullptr;
+    constexpr u32 SOC_BUFFER_ADDR = 0x7500000;
+    constexpr u32 SOC_BUFFER_SIZE = 0x20000;
 
     // This function is called when the process exits
     // Useful to save settings, undo patchs or clean up things
@@ -94,60 +88,75 @@ exit:
     }
 
     void InitializeSockets() {
-        
-        Result ret = 0;
-        ret = svcControlMemoryUnsafe((u32 *)(&socBuffer), soc_buffer_addr, soc_buffer_Size, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
-        if (R_FAILED(ret))
-            OSD::Notify("Error Memory");
+        Result ret = RL_SUCCESS;
 
-        ret = socInit(socBuffer, soc_buffer_Size);
+        // SOCの初期化
+        ret = svcControlMemoryUnsafe((u32 *)(&socBuffer), SOC_BUFFER_ADDR, SOC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        if (R_FAILED(ret)) {
+            OSD::Notify("Error Memory");
+            return;
+        }
+
+        ret = socInit(socBuffer, SOC_BUFFER_SIZE);
         if (R_FAILED(ret)) {
             MessageBox(Utils::Format("Error initializing SOC service: %08X\n", ret))();
-            svcControlMemoryUnsafe((u32 *)(&socBuffer), soc_buffer_addr, soc_buffer_Size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+            svcControlMemoryUnsafe((u32 *)(&socBuffer), SOC_BUFFER_ADDR, SOC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));
             return;
         }
         else
-            OSD::Notify("socInit success",Color::LimeGreen);;
+            OSD::Notify("socInit success", Color::LimeGreen);
 
-        ret = svcControlMemoryUnsafe((u32 *)(&micBuffer), mic_buffer_addr, mic_buffer_size, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        
+        ret = svcControlMemoryUnsafe((u32 *)(&micBuffer), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         if (R_FAILED(ret)) {
-            MessageBox("Error allocating memory for mic buffer")();
+            OSD::Notify("Error allocating memory for mic buffer", Color::Red);
             return;
         }
-        else{
-            OSD::Notify("alloc success!",Color::LimeGreen);
-              // マイクの初期化
-            ret = micInit(micBuffer, mic_buffer_size);
-            OSD::Notify("beyond to Init", Color::LimeGreen);
+        else {
+            OSD::Notify("alloc success!", Color::LimeGreen);
+            // マイクの初期化
+            ret = micInit(micBuffer, MIC_BUFFER_SIZE);
             if (R_FAILED(ret)) {
-                OSD::Notify("Error microphone", Color::LimeGreen);
-                svcControlMemoryUnsafe((u32 *)(&micBuffer), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(0));
+                OSD::Notify("Error microphone", Color::Red);
+                svcControlMemoryUnsafe((u32 *)(&micBuffer), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));      
                 return;
             }
             else {
-                OSD::Notify("Microphone initialization successful!",Color::LimeGreen);
-                //MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, mic_buffer_size - 4, false);
+                OSD::Notify("Microphone initialization successful!", Color::LimeGreen);
+                MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, MIC_BUFFER_SIZE - 4, false);
             }
         }
     }
 
-    void    InitMenu(PluginMenu &menu){
+    void    InitMenu(PluginMenu &menu)
+    {
         MenuFolder* folder = new MenuFolder("システム");
-            *folder += new MenuEntry("Input IP Address",nullptr,InputIPAddress),
-            *folder += new MenuEntry("Server", nullptr, VoiceChatServer);
-            *folder += new MenuEntry("connect", VoiceChatClient);
+        *folder += new MenuEntry("Input IP Address",nullptr,InputIPAddress),
+        *folder += new MenuEntry("Server", nullptr, VoiceChatServer);
+        *folder += new MenuEntry("connect", VoiceChatClient);
         menu += folder;
     }
+
     void EventCallback(Process::Event event){
         if (event == Process::Event::EXIT){
-            micExit();
-            socExit();
-
-            if(micBuffer)
-            svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micBuffer), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(0));
+            if (System::IsCitra())
+            {
+                free(socBuffer);
+            }
+            else
+            {
+                MemInfo info;
+                PageInfo out;
+                svcQueryMemory(&info, &out, SOC_BUFFER_ADDR);
+                if (info.state != MemState::MEMSTATE_FREE)
+                svcControlMemoryUnsafe((u32 *)&socBuffer, SOC_BUFFER_ADDR, SOC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));
             
-            if(socBuffer)
-            svcControlMemoryUnsafe(reinterpret_cast<u32*>(&socBuffer), soc_buffer_addr, soc_buffer_Size, MEMOP_FREE, MemPerm(0));
+                svcQueryMemory(&info, &out, MIC_BUFFER_ADDR);
+                if (info.state != MemState::MEMSTATE_FREE)
+                svcControlMemoryUnsafe(nullptr, MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_REGION_SYSTEM | MEMOP_FREE), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+                micExit();
+                socExit();
+            }
         }
     }
 

@@ -4,7 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include "ctr-led-brary.hpp"
 #include "csvc.h"
 #include "C:/devkitPro/libctru/include/3ds/services/mic.h"
 #include "Led.hpp"
@@ -12,8 +11,6 @@
 #define BUFFER_SIZE 4096
 #define PORT 5000
 //#define SERVER_IP "127.0.0.1" 
-u32 mic_buffer_addr1 = 0x680A2F3;
-u32 mic_buffer_size1 = 0x30000;
 
 namespace CTRPluginFramework
 {
