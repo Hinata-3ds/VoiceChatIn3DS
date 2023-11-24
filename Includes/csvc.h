@@ -116,15 +116,15 @@ Result svcControlMemoryEx(u32* addr_out, u32 addr0, u32 addr1, u32 size, MemOp o
 
 /**
  * 
- * @brief Controls memory mapping, this version removes all checks which were being done
- * The only operations supported are MEMOP_FREE, MEMOP_ALLOC and MEMOP_ALLOC_LINEAR
- * All memory allocated with this svc, must be freed with this svc as well
- * @param[out] addr_out The virtual address resulting from the operation. Usually the same as addr0.
- * @param addr0    The virtual address to be used for the operation.
- * @param size     The requested size for @ref MEMOP_ALLOC and @ref MEMOP_ALLOC_LINEAR.
- * @param op       Operation flags. See @ref MemOp.
- * @param perm     A combination of @ref MEMPERM_READ and @ref MEMPERM_WRITE
- *                 Value 0 is used when unmapping memory.
+ * @brief メモリマッピングを制御します。このバージョンでは、行われていたすべてのチェックが削除されています。
+ * サポートされている操作は、MEMOP_FREE、MEMOP_ALLOC、およびMEMOP_ALLOC_LINEARのみです。
+ * このsvcで割り当てられたすべてのメモリは、同様にこのsvcで解放する必要があります。
+ * @param[out] addr_out 操作の結果として得られた仮想アドレス。通常、addr0と同じです。
+ * @param addr0    操作に使用する仮想アドレス。
+ * @param size     MEMOP_ALLOCおよびMEMOP_ALLOC_LINEARの要求されたサイズ。
+ * @param op       操作フラグ。MemOpを参照してください。
+ * @param perm     MEMPERM_READおよびMEMPERM_WRITEの組み合わせ
+ *                 メモリのアンマッピング時には値0が使用されます。
  * @sa svcControlMemory
  */
 Result svcControlMemoryUnsafe(u32 *out, u32 addr0, u32 size, MemOp op, MemPerm perm);

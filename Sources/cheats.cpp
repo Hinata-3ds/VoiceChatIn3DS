@@ -12,7 +12,6 @@
 #define BUFFER_SIZE 4096
 #define PORT 5000
 //#define SERVER_IP "127.0.0.1" 
-u32 processMemoryAddr = 0x6500000;
 u32 mic_buffer_addr1 = 0x680A2F3;
 u32 mic_buffer_size1 = 0x30000;
 

@@ -4,6 +4,7 @@
 #include "CTRPluginFramework/System/FwkSettings.hpp"
 #include "CTRPluginFramework/Graphics/Color.hpp"
 #include "cheats.hpp"
+#include "C:/devkitPro/libctru/include/3ds/services/mic.h"
 
 #include <vector>
 
@@ -12,6 +13,9 @@
 static u8 *micbuf = nullptr;
 u32 mic_buffer_addr = 0x680A2F3;
 u32 mic_buffer_size = 0x30000;
+u32 processMemoryAddr = 0x6510000;
+u32 *socBuffer;
+u32 socBufferSize = 0x100000;
 namespace CTRPluginFramework
 {
     
@@ -87,11 +91,9 @@ exit:
     }
 
     void InitializeSockets() {
-        u32 processMemoryAddr = 0x6500000;
-        u32 *socBuffer;
-        u32 socBufferSize = 0x100000;
+        
         Result ret = 0;
-        static u8 *micbuf = nullptr;
+        u8 *micbuf;
         ret = svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         if (R_FAILED(ret)) {
             socExit();
@@ -102,34 +104,31 @@ exit:
         else
             OSD::Notify("socInit success",Color::LimeGreen);
 
-        Result micResult = RL_SUCCESS;
-        
+        Result micResult;
 
-        if (micbuf == nullptr) {
-              micResult = svcControlMemoryUnsafe((u32 *)(&micbuf), mic_buffer_addr, mic_buffer_size, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
-            if (R_FAILED(micResult)) {
-                MessageBox("Error allocating memory for mic buffer")();
-                return;
-            }
-            else 
-               OSD::Notify("alloc success!",Color::LimeGreen);
-        }
-
-        // マイクの初期化
-        micResult = micInit(micbuf, mic_buffer_size);
+        micResult = svcControlMemoryUnsafe((u32 *)(&micbuf), mic_buffer_addr, mic_buffer_size, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         if (R_FAILED(micResult)) {
-            OSD::Notify(Utils::Format("Error initializing microphone: %08X\n", micResult), Color::LimeGreen);
-            svcControlMemoryUnsafe((u32 *)(&micbuf), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+            MessageBox("Error allocating memory for mic buffer")();
             return;
         }
-        else {
-            OSD::Notify("Microphone initialization successful!",Color::LimeGreen);
-            MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
+        else{
+            OSD::Notify("alloc success!",Color::LimeGreen);
+              // マイクの初期化
+            micResult = micInit(micbuf, mic_buffer_size);
+            OSD::Notify("beyond to Init",Color::LimeGreen);
+            if (R_FAILED(micResult)) {
+                OSD::Notify(Utils::Format("Error initializing microphone: %08X\n", micResult), Color::LimeGreen);
+                svcControlMemoryUnsafe((u32 *)(&micbuf), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+                return;
+            }
+            else {
+                OSD::Notify("Microphone initialization successful!",Color::LimeGreen);
+                MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, mic_buffer_size - 4, false);
+            }
         }
     }
 
-    void    InitMenu(PluginMenu &menu)
-    {
+    void    InitMenu(PluginMenu &menu){
         MenuFolder* folder = new MenuFolder("システム");
             *folder += new MenuEntry("Input IP Address",nullptr,InputIPAddress),
             *folder += new MenuEntry("Server", nullptr, VoiceChatServer);
@@ -139,8 +138,9 @@ exit:
     void EventCallback(Process::Event event){
         if (event == Process::Event::EXIT){
             micExit();
-            svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
             socExit();
+            svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+            svcControlMemoryUnsafe(reinterpret_cast<u32*>(&socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         }
     }
 
@@ -159,7 +159,7 @@ exit:
         // Init our menu entries & folders
         InitMenu(*menu);
         InitializeSockets();
-        EventCallback(Process::Event::EXIT);
+        
         Process::SetProcessEventCallback(EventCallback);
         // Launch menu and mainloop
         menu->Run();
