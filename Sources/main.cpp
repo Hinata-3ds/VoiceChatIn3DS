@@ -14,7 +14,7 @@ static u8 *micbuf = nullptr;
 u32 mic_buffer_addr = 0x3F00000;
 u32 mic_buffer_size = 0x30000;
 u32 processMemoryAddr = 0x6510000;
-u32 *socBuffer;
+u32 *socBuffer = nullptr;
 u32 socBufferSize = 0x100000;
 namespace CTRPluginFramework
 {
@@ -95,10 +95,13 @@ exit:
         Result ret = 0;
         u8 *micbuf;
         ret = svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        if (R_FAILED(ret))
+            OSD::Notify("Error Memory");
+
+        ret = socInit(socBuffer, socBufferSize);
         if (R_FAILED(ret)) {
-            socExit();
             MessageBox(Utils::Format("Error initializing SOC service: %08X\n", ret))();
-            svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
+            svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
             return;
         }
         else
@@ -115,15 +118,15 @@ exit:
             OSD::Notify("alloc success!",Color::LimeGreen);
               // マイクの初期化
             micResult = micInit(micbuf, mic_buffer_size);
-            OSD::Notify("beyond to Init",Color::LimeGreen);
+            OSD::Notify("beyond to Init", Color::LimeGreen);
             if (R_FAILED(micResult)) {
-                OSD::Notify(Utils::Format("Error initializing microphone: %08X\n", micResult), Color::LimeGreen);
+                OSD::Notify("Error microphone", Color::LimeGreen);
                 svcControlMemoryUnsafe((u32 *)(&micbuf), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
                 return;
             }
             else {
                 OSD::Notify("Microphone initialization successful!",Color::LimeGreen);
-                MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, mic_buffer_size - 4, false);
+                //MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, mic_buffer_size - 4, false);
             }
         }
     }
@@ -139,7 +142,10 @@ exit:
         if (event == Process::Event::EXIT){
             micExit();
             socExit();
+            //if(micbuf)
             svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+            
+            //if(socBuffer)
             svcControlMemoryUnsafe(reinterpret_cast<u32*>(&socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         }
     }
