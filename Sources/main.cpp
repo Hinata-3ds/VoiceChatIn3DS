@@ -10,6 +10,8 @@
 #define BUFFER_SIZE 4096
 #define PORT 5000
 static u8 *micbuf = nullptr;
+u32 mic_buffer_addr = 0x680A2F3;
+u32 mic_buffer_size = 0x30000;
 namespace CTRPluginFramework
 {
     
@@ -98,36 +100,33 @@ exit:
             return;
         }
         else
-            MessageBox("socInit success")();
+            OSD::Notify("socInit success",Color::LimeGreen);
 
         Result micResult = RL_SUCCESS;
         
 
         if (micbuf == nullptr) {
-              ret = svcControlMemoryUnsafe((u32 *)(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+              micResult = svcControlMemoryUnsafe((u32 *)(&micbuf), mic_buffer_addr, mic_buffer_size, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
             if (R_FAILED(micResult)) {
                 MessageBox("Error allocating memory for mic buffer")();
                 return;
             }
+            else 
+               OSD::Notify("alloc success!",Color::LimeGreen);
         }
 
         // マイクの初期化
-        micResult = micInit(micbuf, MIC_BUFFER_SIZE);
+        micResult = micInit(micbuf, mic_buffer_size);
         if (R_FAILED(micResult)) {
             MessageBox(Utils::Format("Error initializing microphone: %08X\n", micResult))();
-           svcControlMemoryUnsafe((u32 *)(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+           svcControlMemoryUnsafe((u32 *)(&micbuf), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
             return;
         }
         else {
-            MessageBox("Microphone initialization successful!")();
-            //MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
+            OSD::Notify("Microphone initialization successful!",Color::LimeGreen);
+            MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
         }
     }
-
-    void CleanupSockets() {
-        
-    }
-
 
     void    InitMenu(PluginMenu &menu)
     {
@@ -140,7 +139,7 @@ exit:
     void EventCallback(Process::Event event){
         if (event == Process::Event::EXIT){
             micExit();
-            svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+            svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
             socExit();
         }
     }
@@ -161,6 +160,7 @@ exit:
         InitMenu(*menu);
         InitializeSockets();
         EventCallback(Process::Event::EXIT);
+        Process::SetProcessEventCallback(EventCallback);
         // Launch menu and mainloop
         menu->Run();
 

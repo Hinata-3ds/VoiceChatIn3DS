@@ -13,8 +13,8 @@
 #define PORT 5000
 //#define SERVER_IP "127.0.0.1" 
 u32 processMemoryAddr = 0x6500000;
-constexpr u32 MIC_BUFFER_ADDR = 0x7700000;
-constexpr u32 MIC_BUFFER_SIZE = 0x30000;
+u32 mic_buffer_addr1 = 0x680A2F3;
+u32 mic_buffer_size1 = 0x30000;
 
 namespace CTRPluginFramework
 {
@@ -48,7 +48,7 @@ void VoiceChatClientLoop(void *arg) {
 
     if (micbuf == nullptr) {
         // マイクバッファを初期化
-        ret = svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        ret = svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), mic_buffer_addr1, mic_buffer_size1, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         if (R_FAILED(ret)) {
             MessageBox("Error allocating memory for mic buffer")();
             return;
@@ -60,9 +60,9 @@ void VoiceChatClientLoop(void *arg) {
 
     // マイクの初期化
     
-    if (R_FAILED(micInit(micbuf, MIC_BUFFER_SIZE))) {
+    if (R_FAILED(micInit(micbuf, mic_buffer_size1))) {
         MessageBox(Utils::Format("Error initializing microphone"))();
-        svcControlMemoryUnsafe((u32*)(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        svcControlMemoryUnsafe((u32*)(&micbuf), mic_buffer_addr1, mic_buffer_size1, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         return;
     }
     else {
@@ -109,7 +109,7 @@ void VoiceChatClientLoop(void *arg) {
 
     //MICU_StopSampling();
     //micExit();
-    svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+    svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), mic_buffer_addr1, mic_buffer_size1, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
 }
 
 void ConnectToServer() {
