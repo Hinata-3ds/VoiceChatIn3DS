@@ -11,7 +11,7 @@
 #define BUFFER_SIZE 4096
 #define PORT 5000
 static u8 *micbuf = nullptr;
-u32 mic_buffer_addr = 0x680A2F3;
+u32 mic_buffer_addr = 0x3F00000;
 u32 mic_buffer_size = 0x30000;
 u32 processMemoryAddr = 0x6510000;
 u32 *socBuffer;
