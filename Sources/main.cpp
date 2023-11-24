@@ -10,12 +10,15 @@
 
 #define BUFFER_SIZE 4096
 #define PORT 5000
-static u8 *micbuf = nullptr;
+
+u8 *micBuffer = nullptr;
 u32 mic_buffer_addr = 0x3F00000;
 u32 mic_buffer_size = 0x30000;
-u32 processMemoryAddr = 0x6510000;
+
 u32 *socBuffer = nullptr;
-u32 socBufferSize = 0x100000;
+u32 soc_buffer_addr = 0x6510000;
+u32 soc_buffer_Size = 0x100000;
+
 namespace CTRPluginFramework
 {
     
@@ -93,35 +96,32 @@ exit:
     void InitializeSockets() {
         
         Result ret = 0;
-        u8 *micbuf;
-        ret = svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        ret = svcControlMemoryUnsafe((u32 *)(&socBuffer), soc_buffer_addr, soc_buffer_Size, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         if (R_FAILED(ret))
             OSD::Notify("Error Memory");
 
-        ret = socInit(socBuffer, socBufferSize);
+        ret = socInit(socBuffer, soc_buffer_Size);
         if (R_FAILED(ret)) {
             MessageBox(Utils::Format("Error initializing SOC service: %08X\n", ret))();
-            svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+            svcControlMemoryUnsafe((u32 *)(&socBuffer), soc_buffer_addr, soc_buffer_Size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
             return;
         }
         else
-            OSD::Notify("socInit success",Color::LimeGreen);
+            OSD::Notify("socInit success",Color::LimeGreen);;
 
-        Result micResult;
-
-        micResult = svcControlMemoryUnsafe((u32 *)(&micbuf), mic_buffer_addr, mic_buffer_size, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
-        if (R_FAILED(micResult)) {
+        ret = svcControlMemoryUnsafe((u32 *)(&micBuffer), mic_buffer_addr, mic_buffer_size, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        if (R_FAILED(ret)) {
             MessageBox("Error allocating memory for mic buffer")();
             return;
         }
         else{
             OSD::Notify("alloc success!",Color::LimeGreen);
               // マイクの初期化
-            micResult = micInit(micbuf, mic_buffer_size);
+            ret = micInit(micBuffer, mic_buffer_size);
             OSD::Notify("beyond to Init", Color::LimeGreen);
-            if (R_FAILED(micResult)) {
+            if (R_FAILED(ret)) {
                 OSD::Notify("Error microphone", Color::LimeGreen);
-                svcControlMemoryUnsafe((u32 *)(&micbuf), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+                svcControlMemoryUnsafe((u32 *)(&micBuffer), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(0));
                 return;
             }
             else {
@@ -142,11 +142,12 @@ exit:
         if (event == Process::Event::EXIT){
             micExit();
             socExit();
-            //if(micbuf)
-            svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+
+            if(micBuffer)
+            svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micBuffer), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(0));
             
-            //if(socBuffer)
-            svcControlMemoryUnsafe(reinterpret_cast<u32*>(&socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+            if(socBuffer)
+            svcControlMemoryUnsafe(reinterpret_cast<u32*>(&socBuffer), soc_buffer_addr, soc_buffer_Size, MEMOP_FREE, MemPerm(0));
         }
     }
 
