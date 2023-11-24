@@ -41,39 +41,12 @@ void InputIPAddress(MenuEntry *entry) {
 
 void VoiceChatClientLoop(void *arg) {
     int sockfd = *(static_cast<int *>(arg));
-    bool initialized = true;
-
     static u8 *micbuf = nullptr;
-    Result ret = RL_SUCCESS;
 
-    if (micbuf == nullptr) {
-        // マイクバッファを初期化
-        ret = svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), mic_buffer_addr1, mic_buffer_size1, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
-        if (R_FAILED(ret)) {
-            MessageBox("Error allocating memory for mic buffer")();
-            return;
-        }
-        else{
-            MessageBox("micInit success")();
-        }
-    }
-
-    // マイクの初期化
-    
-    if (R_FAILED(micInit(micbuf, mic_buffer_size1))) {
-        MessageBox(Utils::Format("Error initializing microphone"))();
-        svcControlMemoryUnsafe((u32*)(&micbuf), mic_buffer_addr1, mic_buffer_size1, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
-        return;
-    }
-    else {
-        MessageBox("microphone successful!")();
-        MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
-    }
+    MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
 
     bool isRunning = true;
     Led led(nullptr); // 新しいLEDクラスのインスタンス化
-
-    
 
     while (isRunning) {
         Controller::Update();
@@ -103,54 +76,6 @@ void VoiceChatClientLoop(void *arg) {
             isRunning = false;
         }
     }
-
-    // 通信が終わったらソケットをクローズ
-    //close(sockfd);
-
-    //MICU_StopSampling();
-    //micExit();
-    svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), mic_buffer_addr1, mic_buffer_size1, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
-}
-
-void ConnectToServer() {
-    u32 *socBuffer;
-    u32 socBufferSize = 0x100000;
-    Result ret = 0;
-    ret = svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
-    ret = socInit(socBuffer, socBufferSize);
-    if (R_FAILED(ret)) {
-        socExit();
-        MessageBox(Utils::Format("Error initializing SOC service: %08X\n", ret))();
-        svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
-        return;
-    }
-    else
-        MessageBox("socInit success")();
-    
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1) {
-        MessageBox("Error creating socket")();
-        return;
-    }
-    else
-        MessageBox("Socket creation successful!")();
-
-    struct sockaddr_in serverAddr;
-    memset(&serverAddr, 0, sizeof(serverAddr));
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(PORT);
-    serverAddr.sin_addr.s_addr = inet_addr(g_serverIP.c_str()); // 保存されたIPアドレスを設定
-
-    if (connect(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
-        MessageBox("Error connecting to server")();
-        return;
-    }
-    else
-        MessageBox("Connected to server!")();
-        ThreadEx clientThread(VoiceChatClientLoop, 4096, 0x30, -1);
-        clientThread.Start(&sockfd);
-
-    // 接続成功時の処理、あとで
 }
 
 void VoiceChatServerLoop(void *arg) {

@@ -118,8 +118,8 @@ exit:
         // マイクの初期化
         micResult = micInit(micbuf, mic_buffer_size);
         if (R_FAILED(micResult)) {
-            MessageBox(Utils::Format("Error initializing microphone: %08X\n", micResult))();
-           svcControlMemoryUnsafe((u32 *)(&micbuf), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+            OSD::Notify(Utils::Format("Error initializing microphone: %08X\n", micResult), Color::LimeGreen);
+            svcControlMemoryUnsafe((u32 *)(&micbuf), mic_buffer_addr, mic_buffer_size, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
             return;
         }
         else {
