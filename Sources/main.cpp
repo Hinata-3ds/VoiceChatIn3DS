@@ -7,9 +7,12 @@
 
 #include <vector>
 
-
+#define BUFFER_SIZE 4096
+#define PORT 5000
+static u8 *micbuf = nullptr;
 namespace CTRPluginFramework
 {
+    
     // This patch the NFC disabling the touchscreen when scanning an amiibo, which prevents ctrpf to be used
     static void    ToggleTouchscreenForceOn(void)
     {
@@ -81,14 +84,65 @@ exit:
         settings.MenuUnselectedItemColor = Color(32, 229, 156);
     }
 
+    void InitializeSockets() {
+        u32 processMemoryAddr = 0x6500000;
+        u32 *socBuffer;
+        u32 socBufferSize = 0x100000;
+        Result ret = 0;
+        static u8 *micbuf = nullptr;
+        ret = svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        if (R_FAILED(ret)) {
+            socExit();
+            MessageBox(Utils::Format("Error initializing SOC service: %08X\n", ret))();
+            svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
+            return;
+        }
+        else
+            MessageBox("socInit success")();
+
+        Result micResult = RL_SUCCESS;
+        
+
+        if (micbuf == nullptr) {
+              ret = svcControlMemoryUnsafe((u32 *)(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+            if (R_FAILED(micResult)) {
+                MessageBox("Error allocating memory for mic buffer")();
+                return;
+            }
+        }
+
+        // マイクの初期化
+        micResult = micInit(micbuf, MIC_BUFFER_SIZE);
+        if (R_FAILED(micResult)) {
+            MessageBox(Utils::Format("Error initializing microphone: %08X\n", micResult))();
+           svcControlMemoryUnsafe((u32 *)(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+            return;
+        }
+        else {
+            MessageBox("Microphone initialization successful!")();
+            //MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
+        }
+    }
+
+    void CleanupSockets() {
+        
+    }
+
 
     void    InitMenu(PluginMenu &menu)
     {
         MenuFolder* folder = new MenuFolder("システム");
             *folder += new MenuEntry("Input IP Address",nullptr,InputIPAddress),
             *folder += new MenuEntry("Server", nullptr, VoiceChatServer);
-            *folder += new MenuEntry("Client", VoiceChatClient);
+            *folder += new MenuEntry("connect", VoiceChatClient);
         menu += folder;
+    }
+    void EventCallback(Process::Event event){
+        if (event == Process::Event::EXIT){
+            micExit();
+            svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+            socExit();
+        }
     }
 
     int     main(void)
@@ -105,12 +159,13 @@ exit:
 
         // Init our menu entries & folders
         InitMenu(*menu);
-
+        InitializeSockets();
+        EventCallback(Process::Event::EXIT);
         // Launch menu and mainloop
         menu->Run();
 
         delete menu;
-
+        //CleanupSockets();
         // Exit plugin
         return (0);
     }

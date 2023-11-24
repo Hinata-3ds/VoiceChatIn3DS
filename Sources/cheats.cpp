@@ -7,14 +7,14 @@
 #include "ctr-led-brary.hpp"
 #include "csvc.h"
 #include "C:/devkitPro/libctru/include/3ds/services/mic.h"
+#include "Led.hpp"
 
 #define BUFFER_SIZE 4096
-#define SOC_ALIGN  0x1000
 #define PORT 5000
 //#define SERVER_IP "127.0.0.1" 
 u32 processMemoryAddr = 0x6500000;
-constexpr u32 MIC_BUFFER_ADDR = 0x6510000;
-constexpr u32 MIC_BUFFER_SIZE = 0x10000;
+constexpr u32 MIC_BUFFER_ADDR = 0x7700000;
+constexpr u32 MIC_BUFFER_SIZE = 0x30000;
 
 namespace CTRPluginFramework
 {
@@ -47,29 +47,34 @@ void VoiceChatClientLoop(void *arg) {
     Result ret = RL_SUCCESS;
 
     if (micbuf == nullptr) {
+        // マイクバッファを初期化
         ret = svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         if (R_FAILED(ret)) {
             MessageBox("Error allocating memory for mic buffer")();
-            close(sockfd);
             return;
+        }
+        else{
+            MessageBox("micInit success")();
         }
     }
 
     // マイクの初期化
-    Result micResult = micInit(micbuf, MIC_BUFFER_SIZE);
-    if (R_FAILED(micResult)) {
-        MessageBox(Utils::Format("Error initializing microphone: %08X\n", micResult))();
-        svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
-        close(sockfd);
+    
+    if (R_FAILED(micInit(micbuf, MIC_BUFFER_SIZE))) {
+        MessageBox(Utils::Format("Error initializing microphone"))();
+        svcControlMemoryUnsafe((u32*)(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         return;
     }
     else {
-        OSD::Notify("microphone successful!");
+        MessageBox("microphone successful!")();
         MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
     }
 
     bool isRunning = true;
-    RGBLedPattern rainbowPattern = LED::GeneratePattern(LED_Color(255, 0, 0), LED_PatType::ASCENDENT, 0.1f, 0.0f, 1, 2, 2, 2);
+    Led led(nullptr); // 新しいLEDクラスのインスタンス化
+
+    
+
     while (isRunning) {
         Controller::Update();
 
@@ -80,25 +85,30 @@ void VoiceChatClientLoop(void *arg) {
             // 新しいマイクバッファにデータをコピー
             memcpy(micbuf, micbuf + lastSampleOffset, sampleDataSize);
 
-            LED::PlayLEDPattern(rainbowPattern);
+            // 新しいLEDの色を設定（仮の値）
+            led.setColor(255, 0, 255);
+            led.update();
 
             ssize_t sentBytes = send(sockfd, micbuf, sampleDataSize, 0);
             if (sentBytes == -1) {
                 MessageBox("Error sending data")();
                 isRunning = false;  // エラーが発生したらループを抜ける
             }
-        } else {
-            LED::StopLEDPattern();
+        } if (Controller::IsKeyReleased(Key::B)){
+            // LEDの停止
+            led.setColor(0, 0, 0);
+            led.update();
+
             MICU_StopSampling();
             isRunning = false;
         }
     }
 
     // 通信が終わったらソケットをクローズ
-    close(sockfd);
+    //close(sockfd);
 
-    MICU_StopSampling();
-    micExit();
+    //MICU_StopSampling();
+    //micExit();
     svcControlMemoryUnsafe(reinterpret_cast<u32*>(&micbuf), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(MEMPERM_READ | MEMPERM_WRITE));
 }
 
@@ -143,39 +153,6 @@ void ConnectToServer() {
     // 接続成功時の処理、あとで
 }
 
-void VoiceChatClient(MenuEntry *entry) {
-
-    // IPアドレスが入力されていない場合は処理しない
-    if (g_serverIP.empty()) {
-        MessageBox("IP Address not provided")();
-        return;
-    }
-
-    ConnectToServer(); // 保存されたIPアドレスでサーバーに接続
-    
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 void VoiceChatServerLoop(void *arg) {
     int sockfd = *reinterpret_cast<int*>(arg);
 
@@ -198,50 +175,16 @@ void VoiceChatServerLoop(void *arg) {
     close(new_sockfd);
 }
 
-
-
-
-
-
-
-
-
-void VoiceChatServer(MenuEntry *entry) {
-    Keyboard kb("Input IP Address");
-
-    // キーボードを開き、ユーザーにIPアドレスを入力させる
-    std::string ipAddress;
-    int result = kb.Open(ipAddress);
-    if (result == -1 || result == -2) {
-        // キャンセルまたはエラーが発生した場合の処理
-        MessageBox("Canceled or Error occurred")();
-        return;
-    }
-    u32 *socBuffer;
-    u32 socBufferSize = 0x100000;
-    Result ret = 0;
-    ret = svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
-    if (R_FAILED(ret)) {
-        MessageBox(Utils::Format("Error allocating memory: %08X\n", ret))();
+void VoiceChatClient(MenuEntry *entry) {
+    // IPアドレスが入力されていない場合は処理しない
+    if (g_serverIP.empty()) {
+        MessageBox("IP Address not provided")();
         return;
     }
 
-    ret = socInit(socBuffer, socBufferSize);
-    if (R_FAILED(ret)) {
-        socExit();
-        MessageBox(Utils::Format("Error initializing SOC service: %08X\n", ret))();
-        svcControlMemoryUnsafe((u32 *)(&socBuffer), processMemoryAddr, socBufferSize, MEMOP_FREE, static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
-        return;
-    }
-    else
-        MessageBox("socInit success")();
-
-    // ソケットの作成
-      // ソケットの作成
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
         MessageBox("Error creating socket")();
-        svcControlMemoryUnsafe(socBuffer, processMemoryAddr, socBufferSize, static_cast<MemOp>(MEMOP_FREE | MEMOP_REGION_SYSTEM), static_cast<MemPerm>(MEMPERM_READ | MEMPERM_WRITE));
         return;
     }
     else
@@ -251,7 +194,41 @@ void VoiceChatServer(MenuEntry *entry) {
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(PORT);
-    serverAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str()); // 
+    serverAddr.sin_addr.s_addr = inet_addr(g_serverIP.c_str());
+
+    if (connect(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
+        MessageBox("Error connecting to server")();
+        return;
+    }
+    else
+        MessageBox("Connected to server!")();
+
+    ThreadEx clientThread(VoiceChatClientLoop, 4096, 0x30, -1);
+    clientThread.Start(&sockfd);
+}
+
+void VoiceChatServer(MenuEntry *entry) {
+    Keyboard kb("Input IP Address");
+    std::string ipAddress;
+    int result = kb.Open(ipAddress);
+    if (result == -1 || result == -2) {
+        MessageBox("Canceled or Error occurred")();
+        return;
+    }
+
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1) {
+        MessageBox("Error creating socket")();
+        return;
+    }
+    else
+        MessageBox("Socket creation successful!")();
+
+    struct sockaddr_in serverAddr;
+    memset(&serverAddr, 0, sizeof(serverAddr));
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(PORT);
+    serverAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str());
 
     if (bind(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
         MessageBox("Error binding socket")();
@@ -269,11 +246,7 @@ void VoiceChatServer(MenuEntry *entry) {
     else
         MessageBox("Listening now")();
 
-    // スレッドを作成し、ループ関数を実行
     ThreadEx serverThread(VoiceChatServerLoop, 4096, 0x30, -1);
     serverThread.Start(&sockfd);
-
-    // close(sockfd);
-    //serverThread.Join(true);
 }
 }
