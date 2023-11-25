@@ -3,10 +3,13 @@
 #include <CTRPluginFramework.hpp>
 #include "cheats.hpp"
 #include <vector>
+#include "ctr-led-brary.hpp"
+#include <malloc.h>
 
 
 namespace CTRPluginFramework
 {
+
     
     // This patch the NFC disabling the touchscreen when scanning an amiibo, which prevents ctrpf to be used
     static void    ToggleTouchscreenForceOn(void)
@@ -62,13 +65,12 @@ exit:
         ToggleTouchscreenForceOn();
     }
     static    u8 *micBuffer = nullptr;
-    constexpr u32 MIC_BUFFER_ADDR = 0x3F00000; //仮0x7520000;
-    constexpr u32 MIC_BUFFER_SIZE = 0x200000;
-
+    constexpr u32 MIC_BUFFER_ADDR = 0x7520000; //仮0x7520000;
+    constexpr u32 MIC_BUFFER_SIZE = 0x20000;
 
     static    u32 *socBuffer = nullptr;
-    constexpr u32 SOC_BUFFER_ADDR = 0x7500000;
-    constexpr u32 SOC_BUFFER_SIZE = 0x20000;
+    constexpr u32 SOC_BUFFER_ADDR = 0x6500000;
+    constexpr u32 SOC_BUFFER_SIZE = 0x10000;
 
     // This function is called when the process exits
     // Useful to save settings, undo patchs or clean up things
@@ -76,6 +78,7 @@ exit:
     {
         ToggleTouchscreenForceOn();
     }
+
     
     void SetCustomTheme() {
         FwkSettings& settings = FwkSettings::Get();
@@ -96,28 +99,30 @@ exit:
             OSD::Notify("Error Memory");
             return;
         }
-
+        
         ret = socInit(socBuffer, SOC_BUFFER_SIZE);
         if (R_FAILED(ret)) {
             MessageBox(Utils::Format("Error initializing SOC service: %08X\n", ret))();
-            svcControlMemoryUnsafe((u32 *)(&socBuffer), SOC_BUFFER_ADDR, SOC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));
+            svcControlMemoryUnsafe((u32 *)&socBuffer, SOC_BUFFER_ADDR, SOC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));
             return;
         }
-        else
+        else{
+            OSD::Notify(Utils::Format("socBuffer value: %08X", socBuffer));
             OSD::Notify("socInit success", Color::LimeGreen);
-
+        }
         
-        ret = svcControlMemoryUnsafe((u32 *)(&micBuffer), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        ret = svcControlMemoryUnsafe((u32 *)&micBuffer, MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_APP), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         if (R_FAILED(ret)) {
             OSD::Notify("Error allocating memory for mic buffer", Color::Red);
             return;
         }
         else {
             OSD::Notify("alloc success!", Color::LimeGreen);
+            OSD::Notify(Utils::Format("micBuffer value: %08X", micBuffer));
             // マイクの初期化
             ret = micInit(micBuffer, MIC_BUFFER_SIZE);
             if (R_FAILED(ret)) {
-                OSD::Notify("Error microphone", Color::Red);
+                OSD::Notify("Error micInit!", Color::Red);
                 svcControlMemoryUnsafe((u32 *)(&micBuffer), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));      
                 return;
             }
@@ -153,7 +158,7 @@ exit:
             
                 svcQueryMemory(&info, &out, MIC_BUFFER_ADDR);
                 if (info.state != MemState::MEMSTATE_FREE)
-                svcControlMemoryUnsafe(nullptr, MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_REGION_SYSTEM | MEMOP_FREE), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+                svcControlMemoryUnsafe(nullptr, MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_REGION_SYSTEM | MEMOP_FREE), MemPerm(0));
                 micExit();
                 socExit();
             }

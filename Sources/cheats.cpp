@@ -31,10 +31,6 @@ void InputIPAddress(MenuEntry *entry) {
     MessageBox("IP Address saved")();
 }
 
-
-
-
-
 void VoiceChatClientLoop(void *arg) {
     int sockfd = *(static_cast<int *>(arg));
     static u8 *micbuf = nullptr;
@@ -75,7 +71,7 @@ void VoiceChatClientLoop(void *arg) {
 }
 
 void VoiceChatServerLoop(void *arg) {
-    int sockfd = *reinterpret_cast<int*>(arg);
+  int sockfd = *reinterpret_cast<int*>(arg);
 
     struct sockaddr_in clientAddr;
     socklen_t clientLen = sizeof(clientAddr);

@@ -14,6 +14,6 @@ namespace CTRPluginFramework
     void InputIPAddress( MenuEntry *entry );
     void VoiceChatServer( MenuEntry *entry );
     void VoiceChatClient( MenuEntry *entry );
-
+    void bootMicInit(MenuEntry *entry);
 }
 #endif
