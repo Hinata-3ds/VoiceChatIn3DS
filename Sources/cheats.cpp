@@ -35,7 +35,7 @@ void VoiceChatClientLoop(void *arg) {
     int sockfd = *(static_cast<int *>(arg));
     static u8 *micbuf = nullptr;
 
-    MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, BUFFER_SIZE, false);
+    MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0x20000 - 4, BUFFER_SIZE, false);
 
     bool isRunning = true;
     Led led(nullptr); // 新しいLEDクラスのインスタンス化
@@ -71,7 +71,7 @@ void VoiceChatClientLoop(void *arg) {
 }
 
 void VoiceChatServerLoop(void *arg) {
-  int sockfd = *reinterpret_cast<int*>(arg);
+    int sockfd = *reinterpret_cast<int*>(arg);
 
     struct sockaddr_in clientAddr;
     socklen_t clientLen = sizeof(clientAddr);
@@ -80,17 +80,16 @@ void VoiceChatServerLoop(void *arg) {
     // 接続が来るまで待機する
     while ((new_sockfd = accept(sockfd, (struct sockaddr *)&clientAddr, &clientLen)) == -1) {
         if (errno != EINTR) {
-            MessageBox("Error accepting connection")();
-            close(sockfd);
+            OSD::Notify("Error accepting connection", Color::Red);
             return;
         }
     }
 
-    OSD::Notify("Connection established", Color::LimeGreen);
-
     // クライアントとの通信が終わったらソケットをクローズ
     close(new_sockfd);
+    OSD::Notify("Connection established", Color::LimeGreen);
 }
+
 
 void VoiceChatClient(MenuEntry *entry) {
     // IPアドレスが入力されていない場合は処理しない
@@ -135,11 +134,11 @@ void VoiceChatServer(MenuEntry *entry) {
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
-        MessageBox("Error creating socket")();
+        OSD::Notify("Error creating socket",Color::Red);
         return;
     }
     else
-        MessageBox("Socket creation successful!")();
+        OSD::Notify("Socket creation successful!",Color::LimeGreen);
 
     struct sockaddr_in serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr));
@@ -148,22 +147,24 @@ void VoiceChatServer(MenuEntry *entry) {
     serverAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str());
 
     if (bind(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
-        MessageBox("Error binding socket")();
-        close(sockfd);
+        OSD::Notify("Error binding socket",Color::Red);
         return;
     }
-    else
-        MessageBox("Binding successful!")();
+    else{
+        OSD::Notify("Binding successful!",Color::LimeGreen);
 
-    if (listen(sockfd, 1) == -1) {
-        MessageBox("Error listening for connections")();
-        close(sockfd);
-        return;
+        if (listen(sockfd, 1) == -1) {
+            OSD::Notify("Error listening for connections",Color::Red);
+            return;
+        }
+        else{
+            OSD::Notify("Listening now",Color::LimeGreen);
+
+            ThreadEx serverThread(VoiceChatServerLoop, 4096, 0x30, -1);
+            serverThread.Start(&sockfd);
+        }
     }
-    else
-        MessageBox("Listening now")();
-
-    ThreadEx serverThread(VoiceChatServerLoop, 4096, 0x30, -1);
-    serverThread.Start(&sockfd);
 }
+
+
 }
