@@ -57,41 +57,17 @@ namespace CTRPluginFramework
 exit:
         svcCloseHandle(processHandle);
     }
-    static    u8 *micBuffer = nullptr;
-    constexpr u32 MIC_BUFFER_ADDR = 0x7520000; //仮0x7520000;
-    constexpr u32 MIC_BUFFER_SIZE = 0x20000;
-
-    void micInittest(){
-        Result result = svcControlMemoryUnsafe((u32 *)&micBuffer, MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
-        if (R_FAILED(result)) {
-            OSD::Notify("Error allocating memory for mic buffer", Color::Red);
-            return;
-        }
-        else {
-            OSD::Notify("alloc success!", Color::LimeGreen);
-            OSD::Notify(Utils::Format("micBuffer value: %08X", micBuffer));
-            // マイクの初期化
-            result = micInit(micBuffer, MIC_BUFFER_SIZE);
-            if (R_FAILED(result)) {
-                OSD::Notify("Error micInit!", Color::Red);
-                svcControlMemoryUnsafe((u32 *)(&micBuffer), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));      
-                return;
-            }
-            else {
-                OSD::Notify("Microphone initialization successful!", Color::LimeGreen);
-            }
-        }
-    }
 
     // This function is called before main and before the game starts
     // Useful to do code edits safely
     void    PatchProcess(FwkSettings &settings)
     {
         ToggleTouchscreenForceOn();
-        micInittest();
-        
     }
-   
+    static    u8 *micBuffer = nullptr;
+    constexpr u32 MIC_BUFFER_ADDR = 0x7520000; //仮0x7520000;
+    constexpr u32 MIC_BUFFER_SIZE = 0x20000;
+
     static    u32 *socBuffer = nullptr;
     constexpr u32 SOC_BUFFER_ADDR = 0x6500000;
     constexpr u32 SOC_BUFFER_SIZE = 0x10000;
@@ -117,6 +93,27 @@ exit:
     //     return 0;
     // }
 
+    bool CloseGameMicHandle(void)
+    {
+        Handle handles[0x100];
+        s32 nbHandles;
+            
+        nbHandles = svcControlProcess(CUR_PROCESS_HANDLE, PROCESSOP_GET_ALL_HANDLES, (u32)handles, 0);
+
+        for(s32 i = 0; i < nbHandles; i++)
+        {
+            char name[12];
+
+            if(R_SUCCEEDED(svcControlService(SERVICEOP_GET_NAME, name, handles[i])) && strcmp(name, "mic:u") == 0)
+            {
+                svcCloseHandle(handles[i]);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     void InitializeSockets() {
         Result ret = RL_SUCCESS;
 
@@ -134,16 +131,37 @@ exit:
             return;
         }
         else{
-            //OSD::Notify(Utils::Format("socBuffer value: %08X", socBuffer));
+            OSD::Notify(Utils::Format("socBuffer value: %08X", socBuffer));
             OSD::Notify("socInit success", Color::LimeGreen);
         }
         
+        ret = svcControlMemoryUnsafe((u32 *)&micBuffer, MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        if (R_FAILED(ret)) {
+            OSD::Notify("Error allocating memory for mic buffer", Color::Red);
+            return;
+        }
+        else {
+            OSD::Notify("alloc success!", Color::LimeGreen);
+            OSD::Notify(Utils::Format("micBuffer value: %08X", micBuffer));
+            // マイクの初期化
+            CloseGameMicHandle();
+            ret = micInit(micBuffer, MIC_BUFFER_SIZE);
+            if (R_FAILED(ret)) {
+                OSD::Notify("Error micInit!", Color::Red);
+                svcControlMemoryUnsafe((u32 *)(&micBuffer), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));      
+                return;
+            }
+            else {
+                OSD::Notify("Microphone initialization successful!", Color::LimeGreen);
+                //MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, MIC_BUFFER_SIZE - 4, false);
+            }
+        }
     }
 
     void    InitMenu(PluginMenu &menu)
     {
         MenuFolder* folder = new MenuFolder("システム");
-        *folder += new MenuEntry("Input IP Address",nullptr,InputIPAddress),
+        *folder += new MenuEntry("Input IP Address",nullptr,InputIPAddressAndPort),
         *folder += new MenuEntry("Server", nullptr, VoiceChatServer);
         *folder += new MenuEntry("connect", VoiceChatClient);
         menu += folder;
