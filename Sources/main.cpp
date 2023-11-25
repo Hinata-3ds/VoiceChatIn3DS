@@ -89,6 +89,9 @@ exit:
         settings.BackgroundBorderColor = Color(32, 229, 156);
         settings.MenuUnselectedItemColor = Color(32, 229, 156);
     }
+    // int micInitDummy(){
+    //     return 0;
+    // }
 
     void InitializeSockets() {
         Result ret = RL_SUCCESS;
@@ -111,7 +114,7 @@ exit:
             OSD::Notify("socInit success", Color::LimeGreen);
         }
         
-        ret = svcControlMemoryUnsafe((u32 *)&micBuffer, MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_APP), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        ret = svcControlMemoryUnsafe((u32 *)&micBuffer, MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         if (R_FAILED(ret)) {
             OSD::Notify("Error allocating memory for mic buffer", Color::Red);
             return;
@@ -128,7 +131,7 @@ exit:
             }
             else {
                 OSD::Notify("Microphone initialization successful!", Color::LimeGreen);
-                MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, MIC_BUFFER_SIZE - 4, false);
+                //MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, MIC_BUFFER_SIZE - 4, false);
             }
         }
     }
