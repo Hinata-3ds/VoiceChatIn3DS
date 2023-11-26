@@ -161,7 +161,7 @@ exit:
         MenuFolder* folder = new MenuFolder("システム");
         *folder += new MenuEntry("Input IP Address",nullptr,InputIPAddressAndPort),
         *folder += new MenuEntry("Server",nullptr, VoiceChatServer);
-        *folder += new MenuEntry("connect", VoiceChatClient);
+        *folder += new MenuEntry("connect",nullptr, VoiceChatClient);
         menu += folder;
     }
 

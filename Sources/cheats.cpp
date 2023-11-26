@@ -9,7 +9,7 @@
 #include "C:/devkitPro/libctru/include/3ds/services/mic.h"
 #include "Led.hpp"
 #include "ncsnd.h"
-#define BUFFER_SIZE 4096
+#define BUFFER_SIZE 0x20000
 //#define SERVER_IP "127.0.0.1" 
 
 namespace CTRPluginFramework
@@ -18,7 +18,6 @@ namespace CTRPluginFramework
 std::string g_serverIP; 
 int g_port = 0;
 // プロトタイプ宣言
-void VoiceChatClientLoop(void *arg);
 void SendVoiceData(void *arg);
 void ProcessReceivedVoiceData(void *arg);
 
@@ -97,9 +96,11 @@ void VoiceChatClient(MenuEntry *entry) {
     ThreadEx clientSendThread(SendVoiceData, 4096, 0x30, -1);
     Result result = clientSendThread.Start(&sockfd);
     if (result != 0) {
-        MessageBox("Error starting voice send thread")();
+        OSD::Notify("Error starting voice send thread",Color::Red);
         return;
     }
+    else
+        OSD::Notify("Thread success!",Color::LimeGreen);
 }
 
 void VoiceChatServer(MenuEntry *entry) {
@@ -210,13 +211,17 @@ void SendVoiceData(void *arg) {
         OSD::Notify("Failed to start sampling", Color::Red);
         micExit(); // マイクを終了する
         return;
+    } else {
+        OSD::Notify("Sampling success!", Color::LimeGreen);
     }
+
+    Led led(nullptr); // LEDクラスのインスタンスを生成
 
     while (true) {
         // マイクから音声データを取得
         u32 sampleDataSize = micGetSampleDataSize();
         u32 lastSampleOffset = micGetLastSampleOffset();
-        
+
         // 音声データをサーバーに送信
         ssize_t sentBytes = send(sockfd, micBuffer, sampleDataSize, 0);
         if (sentBytes == -1) {
@@ -225,20 +230,29 @@ void SendVoiceData(void *arg) {
             MICU_StopSampling(); // マイクのサンプリングを停止
             micExit(); // マイクを終了する
             break;
+        } else {
+            OSD::Notify("Send data success!");
         }
-        
+
+        // LEDを滑らかに点灯
+        led.setSmoothing(0x0F); // スムージングを設定（滑らかさの度合い）
+        led.setColor(255, 0, 255); // LEDの色を設定（赤色）
+        led.update(); // LEDを更新
+
         // 任意の時間待機する(0.5)
         Sleep(Milliseconds(500));
+        ThreadEx::Yield();
     }
 }
 
 void ProcessReceivedVoiceData(void *arg) {
     int sockfd = *(static_cast<int *>(arg));
-    u8 receivedSoundBuffer[BUFFER_SIZE]; // 受信した音声データのバッファ
+    u8 receivedSoundBuffer[BUFFER_SIZE]; // 受信した音声データのバッファ7
+    u32 sampleDataSize = micGetSampleDataSize();
 
     while (true) {
         // サーバーから音声データを受信
-        ssize_t receivedBytes = recv(sockfd, receivedSoundBuffer, BUFFER_SIZE, 0);
+        ssize_t receivedBytes = recv(sockfd, receivedSoundBuffer, sampleDataSize, 0);
         if (receivedBytes == -1) {
             // データ受信に失敗した場合の処理
             OSD::Notify("Failed to receive data", Color::Red);
@@ -253,6 +267,7 @@ void ProcessReceivedVoiceData(void *arg) {
         
         // 受信した音声データを処理・再生
         ProcessReceivedSound(receivedSoundBuffer, receivedBytes);
+        ThreadEx::Yield();
     }
 }
 }
