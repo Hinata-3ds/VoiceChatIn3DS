@@ -78,7 +78,7 @@ void VoiceChatClient(MenuEntry *entry) {
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(g_port);
     serverAddr.sin_addr.s_addr = inet_addr(g_serverIP.c_str());
-
+    
     if (connect(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
         MessageBox("Error connecting to server")();
         return;
@@ -214,16 +214,14 @@ void SendVoiceData(void *arg) {
     } else {
         OSD::Notify("Sampling success!", Color::LimeGreen);
     }
-
-    Led led(nullptr); // LEDクラスのインスタンスを生成
-
     while (true) {
-        // マイクから音声データを取得
+        
         u32 sampleDataSize = micGetSampleDataSize();
         u32 lastSampleOffset = micGetLastSampleOffset();
-
         // 音声データをサーバーに送信
+        
         ssize_t sentBytes = send(sockfd, micBuffer, sampleDataSize, 0);
+        
         if (sentBytes == -1) {
             // データ送信に失敗した場合の処理
             OSD::Notify("Failed to send data", Color::Red);
@@ -234,26 +232,30 @@ void SendVoiceData(void *arg) {
             OSD::Notify("Send data success!");
         }
 
-        // LEDを滑らかに点灯
-        led.setSmoothing(0x0F); // スムージングを設定（滑らかさの度合い）
-        led.setColor(255, 0, 255); // LEDの色を設定（赤色）
-        led.update(); // LEDを更新
-
         // 任意の時間待機する(0.5)
         Sleep(Milliseconds(500));
-        ThreadEx::Yield();
+    
     }
 }
 
 void ProcessReceivedVoiceData(void *arg) {
     int sockfd = *(static_cast<int *>(arg));
-    u8 receivedSoundBuffer[BUFFER_SIZE]; // 受信した音声データのバッファ7
     u32 sampleDataSize = micGetSampleDataSize();
+    u8 *receivedSoundBuffer = new u8[sampleDataSize];  // 受信した音声データのバッファ
+
+    if (receivedSoundBuffer == nullptr) {
+        // メモリ確保に失敗した場合の処理
+        OSD::Notify("Failed to allocate memory", Color::Red);
+        return;
+    }
 
     while (true) {
+        
         // サーバーから音声データを受信
         ssize_t receivedBytes = recv(sockfd, receivedSoundBuffer, sampleDataSize, 0);
+        
         if (receivedBytes == -1) {
+            OSD::Notify(Utils::Format("errno : %d\n", errno));
             // データ受信に失敗した場合の処理
             OSD::Notify("Failed to receive data", Color::Red);
             close(sockfd); // ソケットを閉じる
@@ -267,7 +269,7 @@ void ProcessReceivedVoiceData(void *arg) {
         
         // 受信した音声データを処理・再生
         ProcessReceivedSound(receivedSoundBuffer, receivedBytes);
-        ThreadEx::Yield();
+        
     }
 }
 }

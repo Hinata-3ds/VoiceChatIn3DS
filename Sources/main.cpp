@@ -151,7 +151,6 @@ exit:
             }
             else {
                 OSD::Notify("Microphone initialization successful!", Color::LimeGreen);
-                //MICU_StartSampling(MICU_ENCODING_PCM16, MICU_SAMPLE_RATE_32730, 0, MIC_BUFFER_SIZE - 4, false);
             }
         }
     }
@@ -161,7 +160,7 @@ exit:
         MenuFolder* folder = new MenuFolder("システム");
         *folder += new MenuEntry("Input IP Address",nullptr,InputIPAddressAndPort),
         *folder += new MenuEntry("Server",nullptr, VoiceChatServer);
-        *folder += new MenuEntry("connect",nullptr, VoiceChatClient);
+        *folder += new MenuEntry("connect", VoiceChatClient);
         menu += folder;
     }
 
