@@ -131,7 +131,6 @@ exit:
             return;
         }
         else{
-            OSD::Notify(Utils::Format("socBuffer value: %08X", socBuffer));
             OSD::Notify("socInit success", Color::LimeGreen);
         }
         
@@ -142,7 +141,6 @@ exit:
         }
         else {
             OSD::Notify("alloc success!", Color::LimeGreen);
-            OSD::Notify(Utils::Format("micBuffer value: %08X", micBuffer));
             // マイクの初期化
             CloseGameMicHandle();
             ret = micInit(micBuffer, MIC_BUFFER_SIZE);
@@ -162,7 +160,7 @@ exit:
     {
         MenuFolder* folder = new MenuFolder("システム");
         *folder += new MenuEntry("Input IP Address",nullptr,InputIPAddressAndPort),
-        *folder += new MenuEntry("Server", nullptr, VoiceChatServer);
+        *folder += new MenuEntry("Server",nullptr, VoiceChatServer);
         *folder += new MenuEntry("connect", VoiceChatClient);
         menu += folder;
     }
