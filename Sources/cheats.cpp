@@ -187,7 +187,6 @@ void ProcessReceivedSound(u8* receivedSoundData, u32 receivedSoundSize) {
     // ncsndSound 構造体に受信した音声データをセットする
     ncsndSound receivedSound;
     ncsndInitializeSound(&receivedSound);
-    
 
     receivedSound.isPhysAddr = true; // 物理アドレス設定
     receivedSound.sampleData = (u8*)svcConvertVAToPA((const void*)receivedSoundData, false); // 受信した音声データをセット
@@ -214,17 +213,17 @@ void SendVoiceData(void *arg) {
         OSD::Notify("Failed to start sampling", Color::Red);
         micExit(); // マイクを終了する
         return;
-    } else {
+    } else 
         OSD::Notify("Sampling success!", Color::LimeGreen);
+   
+    while (true) {
+
         ssize_t sentSize = send(sockfd, &micBuffer_datasize, sizeof(micBuffer_datasize), 0);
         if (sentSize <= 0) {
             OSD::Notify("Failed to send size", Color::Red);
         if (sentSize != -1) {
             MessageBox("send size!")();
         }
-    }
-   
-    while (true) {
         u32 sampleDataSize = MIC_BUFFER_SIZE1/*- 4*/ ;
         u32 lastSampleOffset = micGetLastSampleOffset();
         // 音声データをサーバーに送信
@@ -236,47 +235,34 @@ void SendVoiceData(void *arg) {
             MICU_StopSampling(); // マイクのサンプリングを停止
             micExit(); // マイクを終了する
             break;
-        } else {
+        } else 
             OSD::Notify("Send data success!");
-        }
-       
-        return;
-    }
-        // 任意の時間待機する(0.5)
-        Sleep(Milliseconds(500));
+                // 任意の時間待機する(0.5)
+            Sleep(Milliseconds(500));
+        }   
     }
 }
 
 void ProcessReceivedVoiceData(void *arg) {
     int sockfd = *(static_cast<int *>(arg));
 
-    // サイズの受信用バッファ
-    u32 dataSize = 0;
-
-    //サイズを受信する
-    ssize_t receivedSize = recv(sockfd, &dataSize, sizeof(dataSize), 0);
-
-    if (receivedSize <= 0) {
-        OSD::Notify("Failed to receive size", Color::Red);
-        close(sockfd);
-        return;
-    }
-    else
-        OSD::Notify(Utils::Format("Received size: %08lX", receivedSize));
-
-    // 受信したサイズに合わせてバッファを動的に確保
-    u8 *receivedSoundBuffer = new u8[receivedSize];
-
-    if (receivedSoundBuffer == nullptr) {
-        // メモリ確保に失敗した場合の処理
-        OSD::Notify("Failed to allocate memory", Color::Red);
-        close(sockfd);
-        return;
-    } else {
-        OSD::Notify("Memory allocated successfully!");
-    }
-
     while (true) {
+        // サイズの受信用バッファ
+        u32 dataSize = 0;
+
+        //サイズを受信する
+        ssize_t receivedSize = recv(sockfd, &dataSize, sizeof(dataSize), 0);
+
+        if (receivedSize <= 0) {
+            OSD::Notify("Failed to receive size", Color::Red);
+            close(sockfd);
+            return;
+        }
+        else
+            OSD::Notify(Utils::Format("Received size: %08lX", receivedSize));
+
+        // 受信したサイズに合わせてバッファを動的に確保
+        u8 *receivedSoundBuffer = new u8[receivedSize];
         // サーバーから音声データを受信
         ssize_t receivedBytes = recv(sockfd, receivedSoundBuffer, receivedSize, 0);
         
@@ -293,7 +279,6 @@ void ProcessReceivedVoiceData(void *arg) {
     }
 
     // メモリを解放してソケットを閉じる
-    delete[] receivedSoundBuffer;
     //close(sockfd);
 }
 }
