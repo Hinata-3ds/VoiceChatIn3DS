@@ -9,7 +9,7 @@
 
 namespace CTRPluginFramework
 {
-
+    
     
     // This patch the NFC disabling the touchscreen when scanning an amiibo, which prevents ctrpf to be used
     static void    ToggleTouchscreenForceOn(void)
@@ -64,7 +64,7 @@ exit:
     {
         ToggleTouchscreenForceOn();
     }
-    static    u8 *micBuffer = nullptr;
+    u8 *micBuffer = nullptr;
     constexpr u32 MIC_BUFFER_ADDR = 0x7520000; //仮0x7520000;
     constexpr u32 MIC_BUFFER_SIZE = 0x20000;
 
@@ -158,9 +158,9 @@ exit:
     void    InitMenu(PluginMenu &menu)
     {
         MenuFolder* folder = new MenuFolder("システム");
-        *folder += new MenuEntry("Input IP Address",nullptr,InputIPAddressAndPort),
-        *folder += new MenuEntry("Server",nullptr, VoiceChatServer);
-        *folder += new MenuEntry("connect", VoiceChatClient);
+        *folder += new MenuEntry("Input IP Address", nullptr,InputIPAddressAndPort),
+        *folder += new MenuEntry("[Server]", nullptr, VoiceChatServer);
+        *folder += new MenuEntry("[Client]", nullptr, VoiceChatClient);
         menu += folder;
     }
 

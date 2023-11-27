@@ -1,4 +1,3 @@
-
 #include "cheats.hpp"
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +16,8 @@ namespace CTRPluginFramework
 
 std::string g_serverIP; 
 int g_port = 0;
+extern u8 *micBuffer;
+u32 MIC_BUFFER_SIZE1 = 0x20000;
 // プロトタイプ宣言
 void SendVoiceData(void *arg);
 void ProcessReceivedVoiceData(void *arg);
@@ -56,7 +57,10 @@ void InputIPAddressAndPort(MenuEntry *entry) {
     }
 
     MessageBox("IP Address and Port Number saved")();
+    // entry->SetGameFunc(); 後で
 }
+
+
 
 void VoiceChatClient(MenuEntry *entry) {
     // IPアドレスが入力されていない場合は処理しない
@@ -66,12 +70,11 @@ void VoiceChatClient(MenuEntry *entry) {
     }
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1) {
+    if (sockfd < 0) {
         MessageBox("Error creating socket")();
         return;
-    } else {
-        OSD::Notify("Socket creation successful!", Color::LimeGreen);
-    }
+    } 
+    OSD::Notify("Socket creation successful!", Color::LimeGreen);
 
     struct sockaddr_in serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr));
@@ -79,19 +82,18 @@ void VoiceChatClient(MenuEntry *entry) {
     serverAddr.sin_port = htons(g_port);
     serverAddr.sin_addr.s_addr = inet_addr(g_serverIP.c_str());
     
-    if (connect(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
+    if (connect(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
         MessageBox("Error connecting to server")();
         return;
-    } else {
-        // 接続が完了した際に接続した側のIPアドレスとポートを表示
-        struct sockaddr_in addr;
-        socklen_t addrLen = sizeof(addr);
-        getsockname(sockfd, (struct sockaddr *)&addr, &addrLen);
-        std::string connectedIP = inet_ntoa(addr.sin_addr);
-        int connectedPort = ntohs(addr.sin_port);
-        std::string message = "Connected to server! \nIP: " + connectedIP + " \nPort: " + std::to_string(connectedPort);
-        MessageBox(message.c_str())();
-    }
+    } 
+    // 接続が完了した際に接続した側のIPアドレスとポートを表示
+    struct sockaddr_in addr;
+    socklen_t addrLen = sizeof(addr);
+    getsockname(sockfd, (struct sockaddr *)&addr, &addrLen);
+    std::string connectedIP = inet_ntoa(addr.sin_addr);
+    int connectedPort = ntohs(addr.sin_port);
+    std::string message = "Connected to server! \nIP: " + connectedIP + " \nPort: " + std::to_string(connectedPort);
+    MessageBox(message.c_str())();
 
     ThreadEx clientSendThread(SendVoiceData, 4096, 0x30, -1);
     Result result = clientSendThread.Start(&sockfd);
@@ -129,32 +131,32 @@ void VoiceChatServer(MenuEntry *entry) {
     }
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1) {
+    if (sockfd < 0) {
         OSD::Notify("Error creating socket", Color::Red);
         return;
-    } else {
-        OSD::Notify("Socket creation successful!", Color::LimeGreen);
-    }
-
+    } 
+    else {
+    OSD::Notify("Socket creation successful!", Color::LimeGreen);
+    
     struct sockaddr_in serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(port);
     serverAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str());
 
-    if (bind(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
+    if (bind(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
         OSD::Notify("Error binding socket", Color::Red);
         close(sockfd);
         return;
-    } else {
+    } else{
         OSD::Notify("Binding successful!", Color::LimeGreen);
 
-        if (listen(sockfd, 1) == -1) {
+        if (listen(sockfd, 1) < 0) {
             OSD::Notify("Error listening for connections", Color::Red);
             close(sockfd);
             return;
         } 
-        else 
+        else{
             OSD::Notify("Listen successful!", Color::LimeGreen);
           
             struct sockaddr_in clientAddr;
@@ -176,6 +178,8 @@ void VoiceChatServer(MenuEntry *entry) {
             }
             // クライアントとの通信が終わったらソケットをクローズ
             //close(new_sockfd);           
+        }
+        }
     }
 }
 
@@ -199,8 +203,7 @@ void ProcessReceivedSound(u8* receivedSoundData, u32 receivedSoundSize) {
 }
 
 void SendVoiceData(void *arg) {
-    int sockfd = *(static_cast<int *>(arg));
-    u8 micBuffer[BUFFER_SIZE]; // マイクバッファ
+    int sockfd = *(static_cast<int *>(arg)); // マイクバッファ
 
     MICU_Encoding encoding = MICU_ENCODING_PCM16; // 16ビットPCM
     MICU_SampleRate sampleRate = MICU_SAMPLE_RATE_32730; // サンプリングレートを設定
@@ -213,13 +216,18 @@ void SendVoiceData(void *arg) {
         return;
     } else {
         OSD::Notify("Sampling success!", Color::LimeGreen);
+        ssize_t sentSize = send(sockfd, &micBuffer_datasize, sizeof(micBuffer_datasize), 0);
+        if (sentSize <= 0) {
+            OSD::Notify("Failed to send size", Color::Red);
+        if (sentSize != -1) {
+            MessageBox("send size!")();
+        }
     }
+   
     while (true) {
-        
-        u32 sampleDataSize = micGetSampleDataSize();
+        u32 sampleDataSize = MIC_BUFFER_SIZE1/*- 4*/ ;
         u32 lastSampleOffset = micGetLastSampleOffset();
         // 音声データをサーバーに送信
-        
         ssize_t sentBytes = send(sockfd, micBuffer, sampleDataSize, 0);
         
         if (sentBytes == -1) {
@@ -231,45 +239,61 @@ void SendVoiceData(void *arg) {
         } else {
             OSD::Notify("Send data success!");
         }
-
+       
+        return;
+    }
         // 任意の時間待機する(0.5)
         Sleep(Milliseconds(500));
-    
     }
 }
 
 void ProcessReceivedVoiceData(void *arg) {
     int sockfd = *(static_cast<int *>(arg));
-    u32 sampleDataSize = micGetSampleDataSize();
-    u8 *receivedSoundBuffer = new u8[sampleDataSize];  // 受信した音声データのバッファ
+
+    // サイズの受信用バッファ
+    u32 dataSize = 0;
+
+    //サイズを受信する
+    ssize_t receivedSize = recv(sockfd, &dataSize, sizeof(dataSize), 0);
+
+    if (receivedSize <= 0) {
+        OSD::Notify("Failed to receive size", Color::Red);
+        close(sockfd);
+        return;
+    }
+    else
+        OSD::Notify(Utils::Format("Received size: %08lX", receivedSize));
+
+    // 受信したサイズに合わせてバッファを動的に確保
+    u8 *receivedSoundBuffer = new u8[receivedSize];
 
     if (receivedSoundBuffer == nullptr) {
         // メモリ確保に失敗した場合の処理
         OSD::Notify("Failed to allocate memory", Color::Red);
+        close(sockfd);
         return;
+    } else {
+        OSD::Notify("Memory allocated successfully!");
     }
 
     while (true) {
-        
         // サーバーから音声データを受信
-        ssize_t receivedBytes = recv(sockfd, receivedSoundBuffer, sampleDataSize, 0);
+        ssize_t receivedBytes = recv(sockfd, receivedSoundBuffer, receivedSize, 0);
         
-        if (receivedBytes == -1) {
-            OSD::Notify(Utils::Format("errno : %d\n", errno));
-            // データ受信に失敗した場合の処理
-            OSD::Notify("Failed to receive data", Color::Red);
-            close(sockfd); // ソケットを閉じる
-            break;
-        } else if (receivedBytes == 0) {
-            // 接続が切断された場合の処理
-            OSD::Notify("Connection closed", Color::Red);
-            close(sockfd); // ソケットを閉じる
+         if (receivedBytes <= 0) {
+            int errorCode = errno;
+            if (errorCode == ENODEV) {
+                OSD::Notify("Error: No such device", Color::Red);
+            }
+            close(sockfd);
             break;
         }
-        
         // 受信した音声データを処理・再生
         ProcessReceivedSound(receivedSoundBuffer, receivedBytes);
-        
     }
+
+    // メモリを解放してソケットを閉じる
+    delete[] receivedSoundBuffer;
+    //close(sockfd);
 }
 }
