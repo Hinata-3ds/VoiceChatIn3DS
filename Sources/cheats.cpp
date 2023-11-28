@@ -9,6 +9,7 @@
 #include "Led.hpp"
 #include "ncsnd.h"
 #include <vector>
+#include <fcntl.h>
 #define BUFFER_SIZE 0x20000
 //#define SERVER_IP "127.0.0.1" 
 
@@ -25,6 +26,7 @@ std::vector<std::string> console = {};
 void ProcessReceivedVoiceData(void *arg);
 bool CloseGameMicHandle(void);
 void ProcessReceivedSound(u8* receivedSoundData, u32 receivedSoundSize);
+
 
 void InputIPAddressAndPort(MenuEntry *entry) {
     Keyboard kb("Input Server IP Address and Port");
@@ -66,45 +68,48 @@ void InputIPAddressAndPort(MenuEntry *entry) {
 
 void VoiceChatServer(MenuEntry *entry) {
 
-    
+    // Keyboard kb("Input IP Address and Port");
+    // std::string ipAndPort;
+    // int result = kb.Open(ipAndPort);
+    // if (result == -1 || result == -2) {
+    //     MessageBox("Canceled or Error occurred")();
+    //     return;
+    // }
 
-    Keyboard kb("Input IP Address and Port");
-    std::string ipAndPort;
-    int result = kb.Open(ipAndPort);
-    if (result == -1 || result == -2) {
-        MessageBox("Canceled or Error occurred")();
-        return;
-    }
+    // // 文字列からIPアドレスとポート番号を分割する
+    // size_t pos = ipAndPort.find(':');
+    // if (pos == std::string::npos) {
+    //     MessageBox("Invalid input format")();
+    //     return;
+    // }
 
-    // 文字列からIPアドレスとポート番号を分割する
-    size_t pos = ipAndPort.find(':');
-    if (pos == std::string::npos) {
-        MessageBox("Invalid input format")();
-        return;
-    }
+    // std::string ipAddress = ipAndPort.substr(0, pos);
+    // std::string portStr = ipAndPort.substr(pos + 1);
 
-    std::string ipAddress = ipAndPort.substr(0, pos);
-    std::string portStr = ipAndPort.substr(pos + 1);
+    // int port = std::stoi(portStr);
+    // if (port < 0 || port > 65535) {
+    //     MessageBox("Invalid port number")();
+    //     return;
+    // }
 
-    int port = std::stoi(portStr);
-    if (port < 0 || port > 65535) {
-        MessageBox("Invalid port number")();
-        return;
-    }
-
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         OSD::Notify("Error creating socket\n");
         return;
-    } 
-    else {
+    }
+
+    if (g_serverIP.empty()) {
+        MessageBox("IP Address not provided")();
+        return;
+    }
+
     OSD::Notify("Socket creation successful!\n");
     
     struct sockaddr_in serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(port);
-    serverAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str());
+    serverAddr.sin_port = htons(g_port);
+    serverAddr.sin_addr.s_addr = inet_addr(g_serverIP/*ipAddress*/.c_str());
 
     if (bind(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
         OSD::Notify("Error binding socket\n");
@@ -128,15 +133,14 @@ void VoiceChatServer(MenuEntry *entry) {
                 OSD::Notify("Error accepting connection\n");
                 close(sockfd);
                 return;
-            } else {
+            } else 
                 OSD::Notify("Connection established\n");
-                ncsndSetVolume(0x8, 1, 0);
-                ncsndSetRate(0x8, 16360, 1);
-            }
+            
             const Screen &screen = OSD::GetTopScreen();
+
             while (true) {
                 // サイズの受信用バッファ
-                u32 dataSize = 0;
+                u32     dataSize = 0;
                 ssize_t receivedSize = recv(new_sockfd, &dataSize, sizeof(dataSize), 0);
 
                 if (receivedSize <= 0) {
@@ -158,9 +162,11 @@ void VoiceChatServer(MenuEntry *entry) {
                     delete[] receivedSoundBuffer; // メモリ解放
                     return;
                 }
-                else
+                else{
+                    ncsndSetVolume(0x8, 1, 0);
+                    ncsndSetRate(0x8, 16360, 1);
                     ProcessReceivedSound(receivedSoundBuffer, receivedSize);
-
+                }
                     while (11 < console.size())
                     console.erase(console.begin());
 
@@ -173,11 +179,15 @@ void VoiceChatServer(MenuEntry *entry) {
                 }
             }
         }
-    }
+
      
 }
 
 void sendDataToserver(MenuEntry *entry) {
+    if (g_serverIP.empty()) {
+        MessageBox("IP Address not provided")();
+        return;
+    }
 
     u32 micBuffer_pos = 0;
     CloseGameMicHandle();
@@ -185,10 +195,7 @@ void sendDataToserver(MenuEntry *entry) {
     bool init = true;
     std::vector<std::string> consoleOfCTRPF = {};
 
-        if (g_serverIP.empty()) {
-        MessageBox("IP Address not provided")();
-        return;
-    }
+
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
@@ -208,16 +215,17 @@ void sendDataToserver(MenuEntry *entry) {
         return;
     } 
     // 接続が完了した際に接続した側のIPアドレスとポートを表示
-    struct sockaddr_in addr;
-    socklen_t addrLen = sizeof(addr);
-    getsockname(sockfd, (struct sockaddr *)&addr, &addrLen);
-    std::string connectedIP = inet_ntoa(addr.sin_addr);
-    int connectedPort = ntohs(addr.sin_port);
-    std::string message = "Connected to server! \nIP: " + connectedIP + " \nPort: " + std::to_string(connectedPort);
-    MessageBox(message.c_str())();
+    // struct sockaddr_in addr;
+    // socklen_t addrLen = sizeof(addr);
+    // getsockname(sockfd, (struct sockaddr *)&addr, &addrLen);
+    // std::string connectedIP = inet_ntoa(addr.sin_addr);
+    // int connectedPort = ntohs(addr.sin_port);
+    // std::string message = "Connected to server! \nIP: " + connectedIP + " \nPort: " + std::to_string(connectedPort);
+    // MessageBox(message.c_str())();
 
     if (R_FAILED(ncsndInit(false))) {
         
+
         consoleOfCTRPF.push_back("Failed to initialize sound.\n");
         init = false;
     }
@@ -286,9 +294,7 @@ void sendDataToserver(MenuEntry *entry) {
                     consoleOfCTRPF.push_back("Send audio data success!\n");
                 }
             }
-            
             }
-            Sleep(Milliseconds(500));
         }
 
         if (init && Controller::IsKeyReleased(Key::A)) {
@@ -316,7 +322,6 @@ void sendDataToserver(MenuEntry *entry) {
 void ProcessReceivedSound(u8* receivedSoundData, u32 receivedSoundSize) {
     // ncsndSound 構造体に受信した音声データをセットする
     svcFlushProcessDataCache(CUR_PROCESS_HANDLE, (u32)soundBuffer, receivedSoundSize);
-        console.push_back(Utils::Format("sound size: %d\n", receivedSoundSize));
     ncsndSound receivedSound;
     ncsndInitializeSound(&receivedSound);
 
@@ -330,10 +335,7 @@ void ProcessReceivedSound(u8* receivedSoundData, u32 receivedSoundSize) {
     // サウンドを再生する
     if (R_FAILED(ncsndPlaySound(0x8, &receivedSound))) {
         console.push_back("Failed to play received sound\n");
-    }
-    else
-        console.push_back("Playing sound...\n");
-        
+    }    
 }
 
 bool CloseGameMicHandle(void)
