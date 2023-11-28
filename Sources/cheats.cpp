@@ -8,19 +8,23 @@
 #include "C:/devkitPro/libctru/include/3ds/services/mic.h"
 #include "Led.hpp"
 #include "ncsnd.h"
+#include <vector>
 #define BUFFER_SIZE 0x20000
 //#define SERVER_IP "127.0.0.1" 
+
+int sockfd;
 
 namespace CTRPluginFramework
 {
 
 std::string g_serverIP; 
 int g_port = 0;
-extern u8 *micBuffer;
-u32 MIC_BUFFER_SIZE1 = 0x20000;
+std::vector<std::string> console = {};
+
 // プロトタイプ宣言
-void SendVoiceData(void *arg);
 void ProcessReceivedVoiceData(void *arg);
+bool CloseGameMicHandle(void);
+void ProcessReceivedSound(u8* receivedSoundData, u32 receivedSoundSize);
 
 void InputIPAddressAndPort(MenuEntry *entry) {
     Keyboard kb("Input Server IP Address and Port");
@@ -60,11 +64,128 @@ void InputIPAddressAndPort(MenuEntry *entry) {
     // entry->SetGameFunc(); 後で
 }
 
+void VoiceChatServer(MenuEntry *entry) {
 
+    
 
-void VoiceChatClient(MenuEntry *entry) {
-    // IPアドレスが入力されていない場合は処理しない
-    if (g_serverIP.empty()) {
+    Keyboard kb("Input IP Address and Port");
+    std::string ipAndPort;
+    int result = kb.Open(ipAndPort);
+    if (result == -1 || result == -2) {
+        MessageBox("Canceled or Error occurred")();
+        return;
+    }
+
+    // 文字列からIPアドレスとポート番号を分割する
+    size_t pos = ipAndPort.find(':');
+    if (pos == std::string::npos) {
+        MessageBox("Invalid input format")();
+        return;
+    }
+
+    std::string ipAddress = ipAndPort.substr(0, pos);
+    std::string portStr = ipAndPort.substr(pos + 1);
+
+    int port = std::stoi(portStr);
+    if (port < 0 || port > 65535) {
+        MessageBox("Invalid port number")();
+        return;
+    }
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        OSD::Notify("Error creating socket\n");
+        return;
+    } 
+    else {
+    OSD::Notify("Socket creation successful!\n");
+    
+    struct sockaddr_in serverAddr;
+    memset(&serverAddr, 0, sizeof(serverAddr));
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(port);
+    serverAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str());
+
+    if (bind(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+        OSD::Notify("Error binding socket\n");
+        close(sockfd);
+        return;
+    } else{
+        OSD::Notify("Binding successful!\n");
+
+        if (listen(sockfd, 1) < 0) {
+            OSD::Notify("Error listening for connections\n");
+            close(sockfd);
+            return;
+        } 
+        else{
+            OSD::Notify("Listen successful!\n");
+          
+            struct sockaddr_in clientAddr;
+            socklen_t clientLen = sizeof(clientAddr);
+            int new_sockfd = accept(sockfd, (struct sockaddr *)&clientAddr, &clientLen);
+            if (new_sockfd == -1) {
+                OSD::Notify("Error accepting connection\n");
+                close(sockfd);
+                return;
+            } else {
+                OSD::Notify("Connection established\n");
+                ncsndSetVolume(0x8, 1, 0);
+                ncsndSetRate(0x8, 16360, 1);
+            }
+            const Screen &screen = OSD::GetTopScreen();
+            while (true) {
+                // サイズの受信用バッファ
+                u32 dataSize = 0;
+                ssize_t receivedSize = recv(new_sockfd, &dataSize, sizeof(dataSize), 0);
+
+                if (receivedSize <= 0) {
+                    console.push_back("Failed to receive size");
+                    close(sockfd);
+                    return;
+                } 
+                //else 
+                    //console.push_back(Utils::Format("Received size: %08lX", receivedSize));
+
+                // 音声データを受信するバッファを動的に確保
+                u8 *receivedSoundBuffer = new u8[receivedSize];
+
+                // サーバーから音声データを受信
+                ssize_t receivedBytes = recv(new_sockfd, receivedSoundBuffer, receivedSize, 0);
+                if (receivedBytes <= 0) {
+                    console.push_back("Failed to receive data.");
+                    close(sockfd);
+                    delete[] receivedSoundBuffer; // メモリ解放
+                    return;
+                }
+                else
+                    ProcessReceivedSound(receivedSoundBuffer, receivedSize);
+
+                    while (11 < console.size())
+                    console.erase(console.begin());
+
+                    screen.DrawRect(30, 20, 340, 200, Color::Black);
+                    screen.DrawRect(32, 22, 336, 196, Color::Magenta, false);
+                    for (const auto &log : console)
+                        screen.DrawSysfont(log, 35, 22 + (&log - &console[0]) * 18);
+
+                    OSD::SwapBuffers();     
+                }
+            }
+        }
+    }
+     
+}
+
+void sendDataToserver(MenuEntry *entry) {
+
+    u32 micBuffer_pos = 0;
+    CloseGameMicHandle();
+    Result ret = RL_SUCCESS;
+    bool init = true;
+    std::vector<std::string> consoleOfCTRPF = {};
+
+        if (g_serverIP.empty()) {
         MessageBox("IP Address not provided")();
         return;
     }
@@ -95,96 +216,107 @@ void VoiceChatClient(MenuEntry *entry) {
     std::string message = "Connected to server! \nIP: " + connectedIP + " \nPort: " + std::to_string(connectedPort);
     MessageBox(message.c_str())();
 
-    ThreadEx clientSendThread(SendVoiceData, 4096, 0x30, -1);
-    Result result = clientSendThread.Start(&sockfd);
-    if (result != 0) {
-        OSD::Notify("Error starting voice send thread",Color::Red);
-        return;
+    if (R_FAILED(ncsndInit(false))) {
+        
+        consoleOfCTRPF.push_back("Failed to initialize sound.\n");
+        init = false;
+    }
+    if (!micBuffer)
+        ret = svcControlMemoryUnsafe((u32 *)&micBuffer, MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+    
+    if (R_FAILED(ret)) {
+        consoleOfCTRPF.push_back("MIC buffer memory allocation failed.\n");
+        init = false;
+    }
+    else if (R_FAILED(micInit(micBuffer, MIC_BUFFER_SIZE))) {
+        consoleOfCTRPF.push_back("Failed to initialize MIC.\n");
+        init = false;
+    }
+    u32 audioBuffer_pos = 0;
+    if(!soundBuffer){
+        ret = svcControlMemoryUnsafe((u32 *)&soundBuffer, SOUND_BUFFER_ADDR, SOUND_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMREGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
     }
     else
-        OSD::Notify("Thread success!",Color::LimeGreen);
-}
+        ret = RL_SUCCESS;
+    if (R_FAILED(ret) || !soundBuffer) {
 
-void VoiceChatServer(MenuEntry *entry) {
-    Keyboard kb("Input IP Address and Port");
-    std::string ipAndPort;
-    int result = kb.Open(ipAndPort);
-    if (result == -1 || result == -2) {
-        MessageBox("Canceled or Error occurred")();
-        return;
+        consoleOfCTRPF.push_back("Failed to allocate memory for the sound buffer.\n");
+        init = false;
     }
 
-    // 文字列からIPアドレスとポート番号を分割する
-    size_t pos = ipAndPort.find(':');
-    if (pos == std::string::npos) {
-        MessageBox("Invalid input format")();
-        return;
-    }
+    Sleep(Milliseconds(500));
 
-    std::string ipAddress = ipAndPort.substr(0, pos);
-    std::string portStr = ipAndPort.substr(pos + 1);
+    if (init)
+        consoleOfCTRPF.push_back("Speak while pressing A.\n");
+    consoleOfCTRPF.push_back("Press B to exit.\n");
 
-    int port = std::stoi(portStr);
-    if (port < 0 || port > 65535) {
-        MessageBox("Invalid port number")();
-        return;
-    }
+    const Screen &screen = OSD::GetTopScreen();
 
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        OSD::Notify("Error creating socket", Color::Red);
-        return;
-    } 
-    else {
-    OSD::Notify("Socket creation successful!", Color::LimeGreen);
-    
-    struct sockaddr_in serverAddr;
-    memset(&serverAddr, 0, sizeof(serverAddr));
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(port);
-    serverAddr.sin_addr.s_addr = inet_addr(ipAddress.c_str());
+    while (true) {
+        Controller::Update();
+        if (init && Controller::IsKeyPressed(Key::A)) {
+            micBuffer_pos = 0;
+            audioBuffer_pos = 0;
+            if (R_FAILED(MICU_StartSampling(MICU_ENCODING_PCM16_SIGNED, MICU_SAMPLE_RATE_16360, 0, micGetSampleDataSize(), true)))
+                consoleOfCTRPF.push_back("Sampling could not be initiated.\n");
+            else
+                consoleOfCTRPF.push_back("Sampling has begun.\n");
+        }
 
-    if (bind(sockfd, (const struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-        OSD::Notify("Error binding socket", Color::Red);
-        close(sockfd);
-        return;
-    } else{
-        OSD::Notify("Binding successful!", Color::LimeGreen);
+        if (init && Controller::IsKeysDown(Key::A)) {
 
-        if (listen(sockfd, 1) < 0) {
-            OSD::Notify("Error listening for connections", Color::Red);
-            close(sockfd);
-            return;
-        } 
-        else{
-            OSD::Notify("Listen successful!", Color::LimeGreen);
-          
-            struct sockaddr_in clientAddr;
-            socklen_t clientLen = sizeof(clientAddr);
-            int new_sockfd = accept(sockfd, (struct sockaddr *)&clientAddr, &clientLen);
-            if (new_sockfd == -1) {
-                OSD::Notify("Error accepting connection", Color::Red);
-                close(sockfd);
-                return;
+            u32 micBuffer_readpos = micBuffer_pos;
+            micBuffer_pos = micGetLastSampleOffset();
+
+            while (micBuffer_pos != micBuffer_readpos) {
+            soundBuffer[audioBuffer_pos++] = micBuffer[micBuffer_readpos];
+            micBuffer_readpos = (micBuffer_readpos + 1) % MIC_BUFFER_SIZE;
+
+            // サイズの送信
+            ssize_t sentSize = send(sockfd, &audioBuffer_pos, sizeof(audioBuffer_pos), 0);
+            if (sentSize == -1) {
+                consoleOfCTRPF.push_back("Failed to send audio data size\n");
             } else {
-                OSD::Notify("Connection established", Color::LimeGreen);
-            }
+                consoleOfCTRPF.push_back("Send audio data size success!\n");
 
-            ThreadEx serverReceiveThread(ProcessReceivedVoiceData, 4096, 0x30, -1);
-            Result result = serverReceiveThread.Start(&new_sockfd);
-            if (result != 0) {
-                MessageBox("Error starting voice receive thread")();
-                return;
+                ssize_t sentBytes = send(sockfd, soundBuffer, SOUND_BUFFER_SIZE, 0);
+                if (sentBytes == -1) {
+                    consoleOfCTRPF.push_back("Failed to send audio data\n");
+                } else {
+                    consoleOfCTRPF.push_back("Send audio data success!\n");
+                }
             }
-            // クライアントとの通信が終わったらソケットをクローズ
-            //close(new_sockfd);           
+            
+            }
+            Sleep(Milliseconds(500));
         }
+
+        if (init && Controller::IsKeyReleased(Key::A)) {
+            if (R_FAILED(MICU_StopSampling()))
+                consoleOfCTRPF.push_back("Sampling could not be stopped.\n");
+            else
+                consoleOfCTRPF.push_back("Sampling has been halted.\n");
         }
+
+        if (Controller::IsKeyPressed(Key::B))
+            break;
+
+        while (11 < consoleOfCTRPF.size())
+            consoleOfCTRPF.erase(consoleOfCTRPF.begin());
+        
+        screen.DrawRect(30, 20, 340, 200, Color::Black);
+        screen.DrawRect(32, 22, 336, 196, Color::White, false);
+        for (const auto &log : consoleOfCTRPF)
+            screen.DrawSysfont(log, 35, 22 + (&log - &consoleOfCTRPF[0]) * 18, Color::LimeGreen);
+        
+        OSD::SwapBuffers();        
     }
 }
 
 void ProcessReceivedSound(u8* receivedSoundData, u32 receivedSoundSize) {
     // ncsndSound 構造体に受信した音声データをセットする
+    svcFlushProcessDataCache(CUR_PROCESS_HANDLE, (u32)soundBuffer, receivedSoundSize);
+        console.push_back(Utils::Format("sound size: %d\n", receivedSoundSize));
     ncsndSound receivedSound;
     ncsndInitializeSound(&receivedSound);
 
@@ -194,91 +326,34 @@ void ProcessReceivedSound(u8* receivedSoundData, u32 receivedSoundSize) {
     receivedSound.encoding = NCSND_ENCODING_PCM16; // 16ビットPCM
     receivedSound.sampleRate = 16360; // サンプリングレートを設定
     receivedSound.pan = 0.0;
-
+    receivedSound.volume = 1.0;
     // サウンドを再生する
     if (R_FAILED(ncsndPlaySound(0x8, &receivedSound))) {
-        OSD::Notify("Failed to play received sound", Color::Red);
+        console.push_back("Failed to play received sound\n");
     }
+    else
+        console.push_back("Playing sound...\n");
+        
 }
 
-void SendVoiceData(void *arg) {
-    int sockfd = *(static_cast<int *>(arg)); // マイクバッファ
+bool CloseGameMicHandle(void)
+    {
+        Handle handles[0x100];
+        s32 nbHandles;
+            
+        nbHandles = svcControlProcess(CUR_PROCESS_HANDLE, PROCESSOP_GET_ALL_HANDLES, (u32)handles, 0);
 
-    MICU_Encoding encoding = MICU_ENCODING_PCM16; // 16ビットPCM
-    MICU_SampleRate sampleRate = MICU_SAMPLE_RATE_32730; // サンプリングレートを設定
-    u32 micBuffer_datasize = micGetSampleDataSize();
-    // マイクのサンプリングを開始
-    Result result = MICU_StartSampling(encoding, sampleRate, 0, micBuffer_datasize, false);
-    if (result != 0) {
-        OSD::Notify("Failed to start sampling", Color::Red);
-        micExit(); // マイクを終了する
-        return;
-    } else 
-        OSD::Notify("Sampling success!", Color::LimeGreen);
-   
-    while (true) {
+        for(s32 i = 0; i < nbHandles; i++)
+        {
+            char name[12];
 
-        ssize_t sentSize = send(sockfd, &micBuffer_datasize, sizeof(micBuffer_datasize), 0);
-        if (sentSize <= 0) {
-            OSD::Notify("Failed to send size", Color::Red);
-        if (sentSize != -1) {
-            MessageBox("send size!")();
-        }
-        u32 sampleDataSize = MIC_BUFFER_SIZE1/*- 4*/ ;
-        u32 lastSampleOffset = micGetLastSampleOffset();
-        // 音声データをサーバーに送信
-        ssize_t sentBytes = send(sockfd, micBuffer, sampleDataSize, 0);
-        
-        if (sentBytes == -1) {
-            // データ送信に失敗した場合の処理
-            OSD::Notify("Failed to send data", Color::Red);
-            MICU_StopSampling(); // マイクのサンプリングを停止
-            micExit(); // マイクを終了する
-            break;
-        } else 
-            OSD::Notify("Send data success!");
-                // 任意の時間待機する(0.5)
-            Sleep(Milliseconds(500));
-        }   
-    }
-}
-
-void ProcessReceivedVoiceData(void *arg) {
-    int sockfd = *(static_cast<int *>(arg));
-
-    while (true) {
-        // サイズの受信用バッファ
-        u32 dataSize = 0;
-
-        //サイズを受信する
-        ssize_t receivedSize = recv(sockfd, &dataSize, sizeof(dataSize), 0);
-
-        if (receivedSize <= 0) {
-            OSD::Notify("Failed to receive size", Color::Red);
-            close(sockfd);
-            return;
-        }
-        else
-            OSD::Notify(Utils::Format("Received size: %08lX", receivedSize));
-
-        // 受信したサイズに合わせてバッファを動的に確保
-        u8 *receivedSoundBuffer = new u8[receivedSize];
-        // サーバーから音声データを受信
-        ssize_t receivedBytes = recv(sockfd, receivedSoundBuffer, receivedSize, 0);
-        
-         if (receivedBytes <= 0) {
-            int errorCode = errno;
-            if (errorCode == ENODEV) {
-                OSD::Notify("Error: No such device", Color::Red);
+            if(R_SUCCEEDED(svcControlService(SERVICEOP_GET_NAME, name, handles[i])) && strcmp(name, "mic:u") == 0)
+            {
+                svcCloseHandle(handles[i]);
+                return true;
             }
-            close(sockfd);
-            break;
         }
-        // 受信した音声データを処理・再生
-        ProcessReceivedSound(receivedSoundBuffer, receivedBytes);
-    }
 
-    // メモリを解放してソケットを閉じる
-    //close(sockfd);
-}
+        return false;
+    }
 }
