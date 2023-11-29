@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <cstring>
 #include <stdexcept>
-#include "HinataCodes/Socket.hpp"
+#include "Socket.hpp"
 
 namespace CTRPluginFramework
 {
