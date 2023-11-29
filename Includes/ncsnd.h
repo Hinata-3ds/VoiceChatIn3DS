@@ -1,6 +1,6 @@
 /**
  * @file ncsnd.h
- * @brief CSND interface for the Nintendo 3DS.
+ * @brief Nintendo 3DS用のCSNDインターフェース。
  */
 #pragma once
 
@@ -10,181 +10,181 @@
 extern "C" {
 #endif
 
-/// CSND handle.
+/// CSNDハンドル。
 extern Handle ncsndCSNDHandle;
 
-/// Maximum number of CSND channels.
+/// CSNDチャンネルの最大数。
 #define NCSND_NUM_CHANNELS 32
 
-/// Maximum volume for a direct sound.
+/// ダイレクトサウンドの最大ボリューム。
 #define NCSND_DIRECTSOUND_MAX_VOLUME 32768
 
-/// Output modes for a direct sound.
+/// ダイレクトサウンドの出力モード。
 typedef enum
 {
-	NCSND_SOUNDOUTPUT_MONO = 0, ///< Mono output
-	NCSND_SOUNDOUTPUT_STEREO = 1 ///< Stereo output
+    NCSND_SOUNDOUTPUT_MONO = 0, ///< モノラル出力
+    NCSND_SOUNDOUTPUT_STEREO = 1 ///< ステレオ出力
 } ncsndSoundOutputMode;
 
-/// Possible sample encodings.
+/// サンプルエンコーディングの可能な形式。
 typedef enum
 {
-	NCSND_ENCODING_PCM8 = 0, ///< PCM8
-	NCSND_ENCODING_PCM16,    ///< PCM16
-	NCSND_ENCODING_ADPCM,    ///< IMA-ADPCM
+    NCSND_ENCODING_PCM8 = 0, ///< PCM8
+    NCSND_ENCODING_PCM16,    ///< PCM16
+    NCSND_ENCODING_ADPCM,    ///< IMA-ADPCM
 } ncsndSoundFormat;
 
-/// ADPCM context.
+/// ADPCMコンテキスト。
 typedef struct
 {
-    u16 data;	///< Sample
-    u8 tableIndex; ///< table + index
+    u16 data;   ///< サンプル
+    u8 tableIndex; ///< テーブル + インデックス
     u8 padding;
 } ncsndADPCMContext;
 
-/// Channel related data for a direct sound.
+/// ダイレクトサウンドのチャンネル関連データ。
 typedef struct 
 {
-	u8 channelAmount; ///< Amount of channels used, either 1 or 2.
-	u8 channelEncoding; ///< Sample encoding.
-	bool isLeftPhys; ///< If leftSampleData is a physical address (ignore if unknown).
-	bool isRightPhys; ///< If rightSampleData is a physical address (ignore if unknown).
-	u32 sampleRate; ///< Sample rate for both channels.
-	void* leftSampleData; ///< Pointer to the left ear or mono sample data.
-	void* rightSampleData; ///< Pointer to the right ear or mono sample data.
-	u32 sampleDataLength; ///< Size of an individual sample data buffer in bytes.
-	ncsndADPCMContext leftAdpcmContext; ///< IMA ADPCM context for left ear or mono channel.
-	ncsndADPCMContext rightAdpcmContext; ///< IMA ADPCM context for right ear channel.
+    u8 channelAmount; ///< 使用されるチャンネルの数。1か2。
+    u8 channelEncoding; ///< サンプルのエンコーディング。
+    bool isLeftPhys; ///< 左側のサンプルデータが物理アドレスかどうか（不明なら無視）。
+    bool isRightPhys; ///< 右側のサンプルデータが物理アドレスかどうか（不明なら無視）。
+    u32 sampleRate; ///< 両方のチャンネルのサンプルレート。
+    void* leftSampleData; ///< 左耳またはモノラルサンプルデータへのポインタ。
+    void* rightSampleData; ///< 右耳またはモノラルサンプルデータへのポインタ。
+    u32 sampleDataLength; ///< 個々のサンプルデータバッファのサイズ（バイト単位）。
+    ncsndADPCMContext leftAdpcmContext; ///< 左耳またはモノラルチャンネルのIMA ADPCMコンテキスト。
+    ncsndADPCMContext rightAdpcmContext; ///< 右耳チャンネルのIMA ADPCMコンテキスト。
 } ncsndDirectSoundChannelData;
 
-/// Modifiers applied to a direct sound.
+/// ダイレクトサウンドに適用される修飾子。
 typedef struct
 {
-	float speedMultiplier; ///< Sound playback speed, default: 1.
-	s32 channelVolumes[2]; ///< Volume of each individual channel, max: 32768.
-	u8 unknown0; ///< Unknown
-	u8 padding[3]; ///< Padding? Never used.
-	float unknown1; ///< Unknown, seems to be set to 1. Some sort of play delay?
-	u32 unknown2; ///< Unknown, maybe related to unknown1. Some sort of play delay?
-	u8 ignoreVolumeSlider; ///< Set to 1 to play at maximum volume, ignoring the volume slider.
-	u8 forceSpeakerOutput; ///< Set to 1 to play on the speakers, even if headphones are connected.
-	u8 playOnSleep; ///< Set to 0 to pause the sound on sleep and 1 to continue playing on sleep. 
-	u8 padding1; ///< Padding? Never used.
+    float speedMultiplier; ///< サウンド再生速度、デフォルト：1。
+    s32 channelVolumes[2]; ///< 各チャンネルのボリューム、最大：32768。
+    u8 unknown0; ///< 不明
+    u8 padding[3]; ///< パディング？未使用。
+    float unknown1; ///< 不明、1に設定されることが多い。再生遅延の種類？
+    u32 unknown2; ///< 不明、unknown1に関連しているかもしれない。再生遅延の種類？
+    u8 ignoreVolumeSlider; ///< ボリュームスライダーを無視して最大ボリュームで再生するために1に設定。
+    u8 forceSpeakerOutput; ///< ヘッドフォンが接続されていてもスピーカーで再生するために1に設定。
+    u8 playOnSleep; ///< スリープ時にサウンドを一時停止する場合は0、再生を継続する場合は1に設定。
+    u8 padding1; ///< パディング？未使用。
 } ncsndDirectSoundModifiers;
 
-/// Direct sound struct.
+/// ダイレクトサウンド構造体。
 typedef struct
 {
-	u8 always0; ///< Always set to 0 by applets.
-	u8 soundOutputMode; ///< Output mode (ncsndSoundOutputMode).
-	u8 padding[2]; ///< Padding? Never used.
-	ncsndDirectSoundChannelData channelData; ///< Channel related data.
-	ncsndDirectSoundModifiers soundModifiers; ///< Modifiers applied to sound playback.
+    u8 always0; ///< アプレットによって常に0に設定される。
+    u8 soundOutputMode; ///< 出力モード（ncsndSoundOutputMode）。
+    u8 padding[2]; ///< パディング？未使用。
+    ncsndDirectSoundChannelData channelData; ///< チャンネル関連データ。
+    ncsndDirectSoundModifiers soundModifiers; ///< サウンド再生に適用される修飾子。
 } ncsndDirectSound;
 
-/// Sound struct.
+/// サウンド構造体。
 typedef struct
 {
-	bool isPhysAddr; ///< Whether sampleData and loopSampleData hold physical addresses or not (ignore if unknown).
-	void* sampleData; ///< Pointer to sample data.
-	void* loopSampleData; ///< Pointer to the loop point sample (set to sampleData if loop unused).
-	u32 totalSizeBytes; ///< Total size in bytes from start to end.
+    bool isPhysAddr; ///< sampleDataとloopSampleDataが物理アドレスを保持しているかどうか（不明なら無視）。
+    void* sampleData; ///< サンプルデータへのポインタ。
+    void* loopSampleData; ///< ループポイントサンプルへのポインタ（ループが未使用の場合はsampleDataに設定）。
+    u32 totalSizeBytes; ///< 全体のサイズ（バイト単位）。
 
-	ncsndSoundFormat encoding; ///< Sample data encoding.
-	bool loopPlayback; ///< Whether to loop the playback or not (uses loopSampleData as the loop point).
-	ncsndADPCMContext context; ///< ADPCM context.
-	ncsndADPCMContext loopContext; ///< ADPCM context at the loop point (set to context if loop unused).
+    ncsndSoundFormat encoding; ///< サンプルデータのエンコーディング。
+    bool loopPlayback; ///< 再生をループするかどうか（ループポイントにloopSampleDataを使用）。
+    ncsndADPCMContext context; ///< ADPCMコンテキスト。
+    ncsndADPCMContext loopContext; ///< ループポイントでのADPCMコンテキスト（ループが未使用の場合はcontextに設定）。
 
-	u32 sampleRate; ///< Sample rate of the sound.
-	float volume; ///< Volume of the sound.
-	float pitch; ///< Pitch of the sound.
-	float pan; ///< Panning of the sound.
-	bool linearInterpolation; ///< Whether to enable or disable linear interpolation.
-
+    u32 sampleRate; ///< サウンドのサンプルレート。
+    float volume; ///< サウンドのボリューム。
+    float pitch; ///< サウンドのピッチ。
+    float pan; ///< サウンドのパンニング。
+    bool linearInterpolation; ///< 線形補間を有効または無効にするか。
 } ncsndSound;
 
-///< Bitmask of channels that are allowed for usage.
+///< 使用が許可されているチャンネルのビットマスク。
 extern u32 ncsndChannels;
 
 /**
- * @brief Initializes the ncsnd interface, including CSND.
- * @param installAptHook Whether to handle recieving APT notifications automatically.
- * @return Result of the operation.
+ * @brief ncsndインターフェースを初期化し、CSNDも初期化します。
+ * @param installAptHook APT通知を自動的に処理するかどうか。
+ * @return 操作の結果。
  * 
- * APT notifications only work properly in normal applications. Use manual handling for services, applets or plugins.
+ * APT通知は通常のアプリケーションでのみ正常に機能します。サービス、アプレット、プラグインでは手動で処理してください。
 */
 Result ncsndInit(bool installAptHook);
 
 /**
- * @brief Notifies an APT event, only needed if false was passed to ncsndInit
- * @param event APT event to notify, check the APT_HookType enum.
+ * @brief APTイベントを通知します。ncsndInitにfalseが渡された場合にのみ必要です。
+ * @param event 通知するAPTイベント。APT_HookType列挙型を確認してください。
  * 
- * APT notification manual handling is needed for services, applets or plugins.
+ * サービス、アプレット、プラグインではAPT通知の手動処理が必要です。
 */
 void ncsndNotifyAptEvent(APT_HookType event);
 
 /**
- * @brief Terminates the ncsnd interface, including CSND.
+ * @brief ncsndインターフェースを終了し、CSNDも終了します。
 */
 void ncsndExit(void);
 
 /**
- * @brief Initializes a direct sound to the default values.
- * @param sound The direct sound to initialize.
+ * @brief ダイレクトサウンドをデフォルト値で初期化します。
+ * @param sound 初期化するダイレクトサウンド。
 */
 void ncsndInitializeDirectSound(ncsndDirectSound* sound);
 
 /**
- * @brief Plays a direct sound.
- * @param chn Direct sound channel to use. Range [0, 3].
- * @param priority Direct sound priority, used if the channel is already playing. Smaller value -> Higher priority. Range [0, 31].
- * @param sound Pointer to a direct sound struct to play.
- * @return Result of the operation.
+ * @brief ダイレクトサウンドを再生します。
+ * @param chn 使用するダイレクトサウンドチャンネル。範囲[0, 3]。
+ * @param priority ダイレクトサウンドの優先度。チャンネルがすでに再生中の場合に使用されます。小さい値ほど優先度が高い。範囲[0, 31]。
+ * @param sound 再生するダイレクトサウンド構造体へのポインタ。
+ * @return 操作の結果。
 */
 Result ncsndPlayDirectSound(u32 chn, u32 priority, ncsndDirectSound* sound);
 
 /**
- * @brief Initializes a sound to the default values.
- * @param sound The sound to initialize.
+ * @brief サウンドをデフォルト値で初期化します。
+ * @param sound 初期化するサウンド。
 */
 void ncsndInitializeSound(ncsndSound* sound);
 
 /**
- * @brief Plays a sound.
- * @param chn Sound channel to use. Make sure to check availability with ncsndChannels.
- * @param sound Pointer to a sound struct to play.
- * @return Result of the operation.
+ * @brief サウンドを再生します。
+ * @param chn 使用するサウンドチャンネル。ncsndChannelsで使用可能かどうかを確認してください。
+ * @param sound 再生するサウンド構造体へのポインタ。
+ * @return 操作の結果。
 */
 Result ncsndPlaySound(u32 chn, ncsndSound* sound);
 
 /**
- * @brief Stops a channel.
- * @param chn Sound channel to stop.
+ * @brief チャンネルを停止します。
+ * @param chn 停止するサウンドチャンネル。
 */
 void ncsndStopSound(u32 chn);
 
 /**
- * @brief Sets the volume for a channel.
- * @param chn Sound channel to change.
- * @param volume Volume value. Range [0, 1].
- * @param pan Panning value. Range [-1, 1].
+ * @brief チャンネルのボリュームを設定します。
+ * @param chn 変更するサウンドチャンネル。
+ * @param volume ボリューム値。範囲[0, 1]。
+ * @param pan パンニング値。範囲[-1, 1]。
 */
 void ncsndSetVolume(u32 chn, float volume, float pan);
 
 /**
- * @brief Sets the rate for a channel.
- * @param chn Sound channel to change.
- * @param volume Sample rate value.
- * @param pan Pitch value. Range [0, 1].
+ * @brief チャンネルのサンプルレートを設定します。
+ * @param chn 変更するサウンドチャンネル。
+ * @param volume サンプルレート値。
+ * @param pan ピッチ値。範囲[0, 1]。
 */
 void ncsndSetRate(u32 chn, u32 sampleRate, float pitch);
 
 /**
- * @brief Check playing state of a channel.
- * @param chn Sound channel to check.
+ * @brief チャンネルの再生状態を確認します。
+ * @param chn 確認するサウンドチャンネル。
 */
 bool ncsndIsPlaying(u32 chn);
 
 #ifdef __cplusplus
 }
+
 #endif

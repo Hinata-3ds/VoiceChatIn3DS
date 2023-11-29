@@ -17,8 +17,7 @@ namespace CTRPluginFramework
     using StringVector = std::vector<std::string>;
     void InputIPAddressAndPort( MenuEntry *entry );
     void VoiceChatServer( MenuEntry *entry );
-    void bootMicInit(MenuEntry *entry);
-    void sendDataToserver(MenuEntry *entry);
+    void sendDataToserver( MenuEntry *entry );
     
 }
 #endif

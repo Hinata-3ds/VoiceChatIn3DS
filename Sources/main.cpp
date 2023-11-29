@@ -6,7 +6,6 @@
 #include "ctr-led-brary.hpp"
 #include <malloc.h>
 
-
 u8 *soundBuffer = nullptr;
 u8 *micBuffer = nullptr;
 
@@ -170,10 +169,9 @@ exit:
     void    InitMenu(PluginMenu &menu)
     {
         MenuFolder* folder = new MenuFolder("システム");
-        *folder += new MenuEntry("Input IP Address", nullptr,InputIPAddressAndPort),
-        *folder += new MenuEntry("[Server] Receive data from the client.", nullptr, VoiceChatServer);
-        //*folder += new MenuEntry("[Client] Connect to server", nullptr, VoiceChatClient);
-        *folder += new MenuEntry("[Client] start audio input:", nullptr, sendDataToserver);
+        *folder += new MenuEntry("Input IP Address", nullptr,InputIPAddressAndPort);
+        *folder += new MenuEntry("[Server]", nullptr, VoiceChatServer);
+        *folder += new MenuEntry("[Client]", nullptr, sendDataToserver);
         menu += folder;
     }
 
