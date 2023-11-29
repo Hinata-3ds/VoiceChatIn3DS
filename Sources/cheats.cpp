@@ -35,7 +35,6 @@ int g_port = 0;
 std::vector<std::string> console = {};
 std::vector<std::string> consoleOfCTRPF = {};
 const Screen &screen = OSD::GetTopScreen();
-bool sendingData = false;
 
 // プロトタイプ宣言
 bool CloseGameMicHandle(void);
@@ -102,6 +101,7 @@ void SendThreadFunc(void *arg) {
             }
         }
     }
+    ThreadEx::Yield();
 }
 // Socketクラスを利用したRecv専門の子スレッド
 void RecvThreadFunc(void *arg) {
@@ -109,17 +109,13 @@ void RecvThreadFunc(void *arg) {
 
     while (true)
     {
-        // データを受信する処理
-
         u32     dataSize = 0;
         recv(sockfd, &dataSize, sizeof(dataSize), 0);
         
         console.push_back(Utils::Format("Received size: %08lX", dataSize));
 
-        // 音声データを受信するバッファを動的に確保
         u8 *receivedSoundBuffer = new u8[dataSize];
 
-        // サーバーから音声データを受信
         ssize_t receivedBytes = recv(sockfd, receivedSoundBuffer, dataSize, 0);
         if (receivedBytes <= 0)
         {
@@ -140,15 +136,17 @@ void RecvThreadFunc(void *arg) {
             svcSignalEvent(restartRecieveEvent);
         }
     }
+    ThreadEx::Yield();
 }
 
 // 親スレッド
 void ParentThread(void *arg)
 {
+    
     int sockfd = *((int *)arg);
     // 子スレッドの初期化
-    ThreadEx sendThread(SendThreadFunc, 4096, 0x30, -1);
-    ThreadEx recvThread(RecvThreadFunc, 4096, 0x30, -1);
+    static ThreadEx sendThread(SendThreadFunc, 4096, 0x30, -1);
+    static ThreadEx recvThread(RecvThreadFunc, 4096, 0x30, -1);
 
     // 子スレッドの開始
     sendThread.Start(&sockfd);
@@ -194,6 +192,7 @@ void ParentThread(void *arg)
         screen.DrawSysfont(log, 35, 22 + (&log - &console[0]) * 18);
 
     OSD::SwapBuffers();
+    ThreadEx::Yield();
 }
 
 // サーバー側のエントリーポイント
@@ -246,7 +245,7 @@ void VoiceChatServer(MenuEntry *entry)
             {   
                 OSD::Notify("Connection established\n");
                 const Screen &screen = OSD::GetTopScreen();
-                ThreadEx ServerThread(ParentThread, 4096, 0x30, -1);
+                static ThreadEx ServerThread(ParentThread, 4096, 0x30, -1);
                 ServerThread.Start(&new_sockfd);
             }
         }
@@ -315,7 +314,7 @@ void VoiceChatClient(MenuEntry *entry) {
         consoleOfCTRPF.push_back("Speak while pressing A.\n");
     consoleOfCTRPF.push_back("Press B to exit.\n");
 
-    ThreadEx ClientThread(ParentThread, 4096, 0x30, -1);
+    static ThreadEx ClientThread(ParentThread, 4096, 0x30, -1);
     ClientThread.Start(&sockfd);
 }
 
