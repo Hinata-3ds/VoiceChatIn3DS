@@ -30,6 +30,7 @@ Handle restartRecieveEvent;
 Handle exitThreadEvent;
 Handle audioDataReceivedEvent;
 Handle playAudioEvent;
+bool init = true; 
 
 namespace CTRPluginFramework
 {
@@ -79,11 +80,11 @@ void InputIPAddressAndPort(MenuEntry *entry) {
     // entry->SetGameFunc(); 後で
 }
 
-void SendThreadFunc(void *arg) 
+void sendDataFunction(void *arg)
 {
     int sockfd = *((int *)arg);
-
-    while (true) {
+    while (true)
+    {
         soundBuffer[audioBuffer_pos++] = micBuffer[micBuffer_readpos];
         micBuffer_readpos = (micBuffer_readpos + 1) % MIC_BUFFER_SIZE;
 
@@ -98,7 +99,42 @@ void SendThreadFunc(void *arg)
                 console.push_back("Send audio data success!\n");
             }
         }
-        
+        ThreadEx::Yield();
+    }
+}
+
+void SendThreadFunc(void *arg) 
+{
+    int sockfd = *((int *)arg);
+    while (true)
+    {
+        Controller::Update();
+        if (init && Controller::IsKeyPressed(Key::A)) {
+            sendingData = true;
+            audioBuffer_pos = 0;
+            micBuffer_pos = 0;  
+            micBuffer_pos = micGetLastSampleOffset();
+            if (R_FAILED(MICU_StartSampling(MICU_ENCODING_PCM16_SIGNED, MICU_SAMPLE_RATE_16360, 0, micGetSampleDataSize(), true)))
+                consoleOfCTRPF.push_back("Sampling could not be initiated.\n");
+            else
+                consoleOfCTRPF.push_back("Sampling has begun.\n");
+        }
+        if (init && Controller::IsKeysPressed(Key::Y) && audioBuffer_pos < SOUND_BUFFER_SIZE)
+        {  
+            ThreadEx sendDataThread(sendDataFunction, 4096, 0x30, -1);
+            sendDataThread.Start(&sockfd);
+            
+        }
+        if (init && Controller::IsKeyPressed(Key::X))
+        {
+            sendingData = false;
+            if (R_FAILED(MICU_StopSampling()))
+                consoleOfCTRPF.push_back("Sampling could not be stopped.\n");
+            else
+                consoleOfCTRPF.push_back("Sampling has been halted.\n");
+        }
+        if (Controller::IsKeyPressed(Key::B))
+            break;
         ThreadEx::Yield();
     }
 }
