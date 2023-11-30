@@ -38,7 +38,6 @@ std::string g_serverIP;
 int g_port = 0;
 std::vector<std::string> console = {};
 std::vector<std::string> consoleOfCTRPF = {};
-bool sendingData = false;
 
 bool CloseGameMicHandle(void);
 
@@ -109,25 +108,25 @@ void SendThreadFunc(void *arg)
     while (true)
     {
         Controller::Update();
-        if (init && Controller::IsKeyPressed(Key::A)) {
-            sendingData = true;
+        if (init && Controller::IsKeysPressed(Key::A | Key::Left))
+        {
             audioBuffer_pos = 0;
             micBuffer_pos = 0;  
-            micBuffer_pos = micGetLastSampleOffset();
             if (R_FAILED(MICU_StartSampling(MICU_ENCODING_PCM16_SIGNED, MICU_SAMPLE_RATE_16360, 0, micGetSampleDataSize(), true)))
                 consoleOfCTRPF.push_back("Sampling could not be initiated.\n");
             else
                 consoleOfCTRPF.push_back("Sampling has begun.\n");
         }
-        if (init && Controller::IsKeysPressed(Key::Y) && audioBuffer_pos < SOUND_BUFFER_SIZE)
+        if (init && Controller::IsKeysPressed(Key::Y | Key::Left) && audioBuffer_pos < SOUND_BUFFER_SIZE)
         {  
-            ThreadEx sendDataThread(sendDataFunction, 4096, 0x30, -1);
+            micBuffer_readpos = micBuffer_pos;
+            micBuffer_pos = micGetLastSampleOffset();
+            static ThreadEx sendDataThread(sendDataFunction, 4096, 0x30, -1);
             sendDataThread.Start(&sockfd);
             
         }
         if (init && Controller::IsKeyPressed(Key::X))
         {
-            sendingData = false;
             if (R_FAILED(MICU_StopSampling()))
                 consoleOfCTRPF.push_back("Sampling could not be stopped.\n");
             else
@@ -162,7 +161,9 @@ void RecvThreadFunc(void *arg) {
             delete[] receivedSoundBuffer;
             return;
         }
-        else{
+
+        else
+        {
             consoleOfCTRPF.push_back("receive data.");
             svcSignalEvent(audioDataReceivedEvent);
         }
@@ -296,7 +297,7 @@ void VoiceChatClient(MenuEntry *entry) {
 
     CloseGameMicHandle();
     Result ret = RL_SUCCESS;
-    bool init = true;
+    init = true;
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
