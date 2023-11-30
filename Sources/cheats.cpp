@@ -36,8 +36,8 @@ namespace CTRPluginFramework
 {
 std::string g_serverIP; 
 int g_port = 0;
-std::vector<std::string> console = {};
-std::vector<std::string> consoleOfCTRPF = {};
+std::vector<std::string> SendConsole = {};
+std::vector<std::string> ReceiveConsole = {};
 
 bool CloseGameMicHandle(void);
 
@@ -46,6 +46,7 @@ void InputIPAddressAndPort(MenuEntry *entry) {
 
     std::string ipAndPort;
     int result = kb.Open(ipAndPort);
+    kb.IsHexadecimal(false);
     if(result == -1){
         MessageBox("Error occurred");
         return;
@@ -90,12 +91,12 @@ void sendDataFunction(void *arg)
         ssize_t sentSize = send(sockfd, &audioBuffer_pos, sizeof(audioBuffer_pos), 0);
         if (sentSize > 0)
         {
-            console.push_back("Send audio data size success!\n");
+            SendConsole.push_back("Send audio data size success!\n");
             ssize_t sentBytes = send(sockfd, &soundBuffer, audioBuffer_pos, 0);
 
             if (sentBytes > 0)
             {
-                console.push_back("Send audio data success!\n");
+                SendConsole.push_back("Send audio data success!\n");
             }
         }
         ThreadEx::Yield();
@@ -108,16 +109,16 @@ void SendThreadFunc(void *arg)
     while (true)
     {
         Controller::Update();
-        if (init && Controller::IsKeysPressed(Key::A | Key::Left))
+        if (init && Controller::IsKeyPressed(Key::Y))
         {
             audioBuffer_pos = 0;
             micBuffer_pos = 0;  
             if (R_FAILED(MICU_StartSampling(MICU_ENCODING_PCM16_SIGNED, MICU_SAMPLE_RATE_16360, 0, micGetSampleDataSize(), true)))
-                consoleOfCTRPF.push_back("Sampling could not be initiated.\n");
+                SendConsole.push_back("Sampling could not be initiated.\n");
             else
-                consoleOfCTRPF.push_back("Sampling has begun.\n");
+                SendConsole.push_back("Sampling has begun.\n");
         }
-        if (init && Controller::IsKeysPressed(Key::Y | Key::Left) && audioBuffer_pos < SOUND_BUFFER_SIZE)
+        if (init && Controller::IsKeysPressed(Key::L) && audioBuffer_pos < SOUND_BUFFER_SIZE)
         {  
             micBuffer_readpos = micBuffer_pos;
             micBuffer_pos = micGetLastSampleOffset();
@@ -128,9 +129,9 @@ void SendThreadFunc(void *arg)
         if (init && Controller::IsKeyPressed(Key::X))
         {
             if (R_FAILED(MICU_StopSampling()))
-                consoleOfCTRPF.push_back("Sampling could not be stopped.\n");
+                SendConsole.push_back("Sampling could not be stopped.\n");
             else
-                consoleOfCTRPF.push_back("Sampling has been halted.\n");
+                SendConsole.push_back("Sampling has been halted.\n");
         }
         if (Controller::IsKeyPressed(Key::B))
             break;
@@ -147,7 +148,7 @@ void RecvThreadFunc(void *arg) {
         dataSize = 0;
         recv(sockfd, &dataSize, sizeof(dataSize), 0);
         
-        consoleOfCTRPF.push_back(Utils::Format("Received size: %08lX", dataSize));
+        ReceiveConsole.push_back(Utils::Format("Received size: %08lX", dataSize));
 
         // 音声データを受信するバッファを動的に確保
         receivedSoundBuffer = new u8[dataSize];
@@ -156,7 +157,7 @@ void RecvThreadFunc(void *arg) {
         ssize_t receivedBytes = recv(sockfd, receivedSoundBuffer, dataSize, 0);
         if (receivedBytes <= 0)
         {
-            consoleOfCTRPF.push_back("Failed to receive data.");
+            ReceiveConsole.push_back("Failed to receive data.");
             close(sockfd);
             delete[] receivedSoundBuffer;
             return;
@@ -164,7 +165,7 @@ void RecvThreadFunc(void *arg) {
 
         else
         {
-            consoleOfCTRPF.push_back("receive data.");
+            ReceiveConsole.push_back("receive data.");
             svcSignalEvent(audioDataReceivedEvent);
         }
         ThreadEx::Yield();
@@ -208,9 +209,9 @@ void ParentThread(void *arg)
         receivedSound.volume = 1.0;
         // サウンドを再生する
         if (R_FAILED(ncsndPlaySound(0x8, &receivedSound))) 
-            console.push_back("Failed to play received sound\n");
+            ReceiveConsole.push_back("Failed to play received sound\n");
         else   
-            console.push_back("play received sound!\n");
+            ReceiveConsole.push_back("play received sound!\n");
 
         // 新しいシグナルを受け取るためにイベントをクリアする
         svcClearEvent(audioDataReceivedEvent);
@@ -273,13 +274,13 @@ void VoiceChatServer(MenuEntry *entry) {
                 
                 while(1)
                 {
-                    while (11 < consoleOfCTRPF.size())
-                        consoleOfCTRPF.erase(consoleOfCTRPF.begin());
+                    while (11 < ReceiveConsole.size())
+                        ReceiveConsole.erase(ReceiveConsole.begin());
 
                     screen.DrawRect(30, 20, 340, 200, Color::Black);
                     screen.DrawRect(32, 22, 336, 196, Color::Magenta, false);
-                    for (const auto &log : consoleOfCTRPF)
-                        screen.DrawSysfont(log, 35, 22 + (&log - &consoleOfCTRPF[0]) * 18);
+                    for (const auto &log : ReceiveConsole)
+                        screen.DrawSysfont(log, 35, 22 + (&log - &ReceiveConsole[0]) * 18);
 
                     OSD::SwapBuffers();
                 }
@@ -319,18 +320,18 @@ void VoiceChatClient(MenuEntry *entry) {
 
     if (R_FAILED(ncsndInit(false))) {
 
-        console.push_back("Failed to initialize sound.\n");
+        SendConsole.push_back("Failed to initialize sound.\n");
         init = false;
     }
     if (!micBuffer)
         ret = svcControlMemoryUnsafe((u32 *)&micBuffer, MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
     
     if (R_FAILED(ret)) {
-        console.push_back("MIC buffer memory allocation failed.\n");
+        SendConsole.push_back("MIC buffer memory allocation failed.\n");
         init = false;
     }
     else if (R_FAILED(micInit(micBuffer, MIC_BUFFER_SIZE))) {
-        console.push_back("Failed to initialize MIC.\n");
+        SendConsole.push_back("Failed to initialize MIC.\n");
         init = false;
     }
     if(!soundBuffer){
@@ -340,15 +341,15 @@ void VoiceChatClient(MenuEntry *entry) {
         ret = RL_SUCCESS;
     if (R_FAILED(ret) || !soundBuffer) {
 
-        console.push_back("Failed to allocate memory for the sound buffer.\n");
+        SendConsole.push_back("Failed to allocate memory for the sound buffer.\n");
         init = false;
     }
 
     Sleep(Milliseconds(500));
 
     if (init)
-        console.push_back("Speak while pressing A.\n");
-    console.push_back("Press B to exit.\n");
+        SendConsole.push_back("Speak while pressing A.\n");
+    SendConsole.push_back("Press B to exit.\n");
 
 
     static ThreadEx ClientThread(ParentThread, 4096, 0x30, -1);
@@ -356,13 +357,13 @@ void VoiceChatClient(MenuEntry *entry) {
     const Screen &screen = OSD::GetTopScreen();
     while(1)
     {
-        while (11 < console.size())
-            console.erase(console.begin());
+        while (11 < SendConsole.size())
+            SendConsole.erase(SendConsole.begin());
 
         screen.DrawRect(30, 20, 340, 200, Color::Black);
         screen.DrawRect(32, 22, 336, 196, Color::Magenta, false);
-        for (const auto &log : console)
-            screen.DrawSysfont(log, 35, 22 + (&log - &console[0]) * 18);
+        for (const auto &log : SendConsole)
+            screen.DrawSysfont(log, 35, 22 + (&log - &SendConsole[0]) * 18);
 
         OSD::SwapBuffers();
     }
