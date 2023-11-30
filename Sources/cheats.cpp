@@ -107,7 +107,7 @@ void SendThreadFunc(void *arg)
 void RecvThreadFunc(void *arg) {
     int sockfd = *((int *)arg);
 
-    while (true)
+    while (1)
     {
         dataSize = 0;
         recv(sockfd, &dataSize, sizeof(dataSize), 0);
@@ -138,6 +138,8 @@ void RecvThreadFunc(void *arg) {
 void ParentThread(void *arg)
 {
     int sockfd = *((int *)arg);
+   
+    
     // 子スレッドの初期化
     static ThreadEx sendThread(SendThreadFunc, 4096, 0x30, -1);
     static ThreadEx recvThread(RecvThreadFunc, 4096, 0x30, -1);
@@ -146,8 +148,11 @@ void ParentThread(void *arg)
     sendThread.Start(&sockfd);
     recvThread.Start(&sockfd);
 
-    while (true) {
+    while (1)
+    {
         // 音声データの到着を待つ
+        svcCreateEvent(&audioDataReceivedEvent, RESET_ONESHOT);
+        svcClearEvent(audioDataReceivedEvent);
         svcWaitSynchronization(audioDataReceivedEvent, U64_MAX);
         
         // 音声を再生するためのシグナルを送る
