@@ -185,13 +185,13 @@ void ParentThread(void *arg)
     sendThread.Start(&sockfd);
     recvThread.Start(&sockfd);
 
+    svcCreateEvent(&audioDataReceivedEvent, RESET_ONESHOT);
+    svcClearEvent(audioDataReceivedEvent);
+
     while (1)
     {
         // 音声データの到着を待つ
-        svcCreateEvent(&audioDataReceivedEvent, RESET_ONESHOT);
-        svcClearEvent(audioDataReceivedEvent);
         svcWaitSynchronization(audioDataReceivedEvent, U64_MAX);
-        
         // 音声を再生するためのシグナルを送る
         ncsndSetVolume(0x8, 1, 0);
         ncsndSetRate(0x8, 16360, 1);
@@ -221,7 +221,7 @@ void ParentThread(void *arg)
 
 // サーバー側のエントリーポイント
 void VoiceChatServer(MenuEntry *entry) {
-     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         OSD::Notify("Error creating socket\n");
         return;
