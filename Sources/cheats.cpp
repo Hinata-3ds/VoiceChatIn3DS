@@ -83,7 +83,7 @@ void InputIPAddressAndPort(MenuEntry *entry) {
 void sendDataFunction(void *arg)
 {
     int sockfd = *((int *)arg);
-    while (true)
+    while (1)
     {
         soundBuffer[audioBuffer_pos++] = micBuffer[micBuffer_readpos];
         micBuffer_readpos = (micBuffer_readpos + 1) % MIC_BUFFER_SIZE;
@@ -95,10 +95,13 @@ void sendDataFunction(void *arg)
             ssize_t sentBytes = send(sockfd, &soundBuffer, audioBuffer_pos, 0);
 
             if (sentBytes > 0)
-            {
                 SendConsole.push_back("Send audio data success!\n");
-            }
+            else
+                SendConsole.push_back("error 2");
         }
+        else
+            SendConsole.push_back("error 1");
+
         ThreadEx::Yield();
     }
 }
@@ -106,32 +109,35 @@ void sendDataFunction(void *arg)
 void SendThreadFunc(void *arg) 
 {
     int sockfd = *((int *)arg);
-    while (true)
+    static ThreadEx sendDataThread(sendDataFunction, 4096, 0x30, -1);
+    while (1)
     {
         Controller::Update();
-        if (init && Controller::IsKeyPressed(Key::Y))
+        if (init && Controller::IsKeyPressed(Key::A))
         {
             audioBuffer_pos = 0;
             micBuffer_pos = 0;  
             if (R_FAILED(MICU_StartSampling(MICU_ENCODING_PCM16_SIGNED, MICU_SAMPLE_RATE_16360, 0, micGetSampleDataSize(), true)))
                 SendConsole.push_back("Sampling could not be initiated.\n");
-            else
+            else{
                 SendConsole.push_back("Sampling has begun.\n");
+                sendDataThread.Start(&sockfd);
+            }
         }
-        if (init && Controller::IsKeysPressed(Key::L) && audioBuffer_pos < SOUND_BUFFER_SIZE)
+        if (init && Controller::IsKeyDown(Key::A) && audioBuffer_pos < SOUND_BUFFER_SIZE)
         {  
             micBuffer_readpos = micBuffer_pos;
             micBuffer_pos = micGetLastSampleOffset();
-            static ThreadEx sendDataThread(sendDataFunction, 4096, 0x30, -1);
-            sendDataThread.Start(&sockfd);
-            
         }
-        if (init && Controller::IsKeyPressed(Key::X))
+
+        if (init && Controller::IsKeyReleased(Key::A))
         {
             if (R_FAILED(MICU_StopSampling()))
                 SendConsole.push_back("Sampling could not be stopped.\n");
-            else
+            else{
                 SendConsole.push_back("Sampling has been halted.\n");
+                sendDataThread.Join(true);
+            }
         }
         if (Controller::IsKeyPressed(Key::B))
             break;
@@ -162,7 +168,6 @@ void RecvThreadFunc(void *arg) {
             delete[] receivedSoundBuffer;
             return;
         }
-
         else
         {
             ReceiveConsole.push_back("receive data.");
