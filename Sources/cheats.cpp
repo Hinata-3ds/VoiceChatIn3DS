@@ -61,10 +61,8 @@ namespace CTRPluginFramework
             }
 
             int received = soc.Receive(receivedSoundBuffer, sizeof(receivedSoundBuffer),0);
-            if(received == 1 || received == 0)
+            if(received == -1 || received == 0)
                 continue;
-            else 
-                //console.push_back("受信に成功しました！\n");
 
             receivedData[currentIndex].insert(receivedData[currentIndex].end(), receivedSoundBuffer, receivedSoundBuffer + received);       
         }
@@ -97,11 +95,10 @@ namespace CTRPluginFramework
 
                 int SendByte = soc.Send(soundBuffer, 4096, 0); // sendBufferを送信
 
-                if (SendByte == 1 || SendByte == 0) {
+                if (SendByte == -1 || SendByte == 0) {
                     continue;
                 }
                 else{
-                    //console.push_back("送信に成功しました！\n");
                     svcSignalEvent(stopSendEvent);
                 }
                 sendData.insert(sendData.end(), soundBuffer, soundBuffer + SendByte);
@@ -194,7 +191,7 @@ namespace CTRPluginFramework
                 console.push_back("受信した音声データの再生に失敗しました\n");
             else {
                 svcSignalEvent(sendEvent);
-                
+                console.push_back("音声の再生に成功しました！");
             }
         }
         svcSignalEvent(exitThreadEvent);
