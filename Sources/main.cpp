@@ -4,7 +4,8 @@
 #include "cheats.hpp"
 #include <vector>
 #include "ctr-led-brary.hpp"
-#include <malloc.h>
+#include "Patches.hpp"
+#include "Debug.hpp"
 
 u8 *soundBuffer = nullptr;
 u8 *micBuffer = nullptr;
@@ -62,9 +63,17 @@ exit:
 
     // This function is called before main and before the game starts
     // Useful to do code edits safely
-    void    PatchProcess(FwkSettings &settings)
+    void    ProcessEventCallback(Process::Event event)
     {
-        ToggleTouchscreenForceOn();
+
+        if(event == Process::Event::EXIT)
+        {
+            socExit();
+
+            // Free allocated memory
+            u32 temp;
+            svcControlMemoryUnsafe((u32 *)&temp, SHAREDMEM_ADDR, SERVICE_SHAREDMEM_SIZE * SERVICE_COUNT, (MemOp)MEMOP_FREE, (MemPerm)0);
+        }
     }
    
 
@@ -74,9 +83,37 @@ exit:
 
     // This function is called when the process exits
     // Useful to save settings, undo patchs or clean up things
-    void    OnProcessExit(void)
+     void    PatchProcess(FwkSettings &settings)
     {
-        ToggleTouchscreenForceOn();
+
+        Process::SetProcessEventCallback(ProcessEventCallback);
+
+        if(System::IsCitra())
+        {
+            Result res;
+
+            res = socInit((u32 *)0, SERVICE_SHAREDMEM_SIZE);
+            DEBUG_NOTIFY(Utils::Format("Soc Init: %08lX", res));
+        }
+        else
+        {
+            u32 temp;
+            Result res;
+
+            if(R_FAILED(res = svcControlMemoryUnsafe((u32 *)&temp, SHAREDMEM_ADDR, SERVICE_SHAREDMEM_SIZE * SERVICE_COUNT, MemOp(MEMOP_REGION_SYSTEM | MEMOP_ALLOC), MemPerm(MEMPERM_READ | MEMPERM_WRITE))))
+            {
+                MessageBox(Utils::Format("Failed to allocate memory. (Error code: %08lX)\nWe are going to abort.", res));
+                abort();
+            }
+
+            res = socInit((u32 *)SHAREDMEM_ADDR, SERVICE_SHAREDMEM_SIZE);
+            DEBUG_NOTIFY(Utils::Format("socInit: %08lX", res));
+        }
+
+        if(!InstallSocketHooks())
+        {
+            OSD::Notify("Failed to install socket hooks", Color::Red);
+        }
     }
 
     
@@ -89,70 +126,29 @@ exit:
         settings.BackgroundBorderColor = Color(32, 229, 156);
         settings.MenuUnselectedItemColor = Color(32, 229, 156);
     }
-    // int micInitDummy(){
-    //     return 0;
-    // }
 
-    // bool CloseGameMicHandle(void)
-    // {
-    //     Handle handles[0x100];
-    //     s32 nbHandles;
-            
-    //     nbHandles = svcControlProcess(CUR_PROCESS_HANDLE, PROCESSOP_GET_ALL_HANDLES, (u32)handles, 0);
-
-    //     for(s32 i = 0; i < nbHandles; i++)
-    //     {
-    //         char name[12];
-
-    //         if(R_SUCCEEDED(svcControlService(SERVICEOP_GET_NAME, name, handles[i])) && strcmp(name, "mic:u") == 0)
-    //         {
-    //             svcCloseHandle(handles[i]);
-    //             return true;
-    //         }
-    //     }
-
-    //     return false;
-    // }
 
     void InitializeSockets() {
         Result ret = RL_SUCCESS;
 
         // SOCの初期化
-        ret = svcControlMemoryUnsafe((u32 *)(&socBuffer), SOC_BUFFER_ADDR, SOC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
-        if (R_FAILED(ret)) {
-            OSD::Notify("Error Memory");
-            return;
-        }
-        
-        ret = socInit(socBuffer, SOC_BUFFER_SIZE);
-        if (R_FAILED(ret)) {
-            MessageBox(Utils::Format("Error initializing SOC service: %08X\n", ret))();
-            svcControlMemoryUnsafe((u32 *)&socBuffer, SOC_BUFFER_ADDR, SOC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));
-            return;
-        }
-        else{
-            OSD::Notify("socInit success", Color::LimeGreen);
-        }
-        
-        // ret = svcControlMemoryUnsafe((u32 *)&micBuffer, MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
+        // ret = svcControlMemoryUnsafe((u32 *)(&socBuffer), SOC_BUFFER_ADDR, SOC_BUFFER_SIZE, MemOp(MEMOP_ALLOC | MEMOP_REGION_SYSTEM), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         // if (R_FAILED(ret)) {
-        //     OSD::Notify("Error allocating memory for mic buffer", Color::Red);
+        //     OSD::Notify("Error Memory");
         //     return;
         // }
-        // else {
-        //     OSD::Notify("alloc success!", Color::LimeGreen);
-        //     // マイクの初期化
-        //     CloseGameMicHandle();
-        //     ret = micInit(micBuffer, MIC_BUFFER_SIZE);
-        //     if (R_FAILED(ret)) {
-        //         OSD::Notify("Error micInit!", Color::Red);
-        //         svcControlMemoryUnsafe((u32 *)(&micBuffer), MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));      
-        //         return;
-        //     }
-        //     else {
-        //         OSD::Notify("Microphone initialization successful!", Color::LimeGreen);
-        //     }
+        
+        // ret = socInit(socBuffer, SOC_BUFFER_SIZE);
+        // if (R_FAILED(ret)) {
+        //     MessageBox(Utils::Format("Error initializing SOC service: %08X\n", ret))();
+        //     svcControlMemoryUnsafe((u32 *)&socBuffer, SOC_BUFFER_ADDR, SOC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));
+        //     return;
         // }
+        // else{
+        //     OSD::Notify("socInit success", Color::LimeGreen);
+        // }
+        
+
         ret = svcControlMemoryUnsafe((u32 *)&soundBuffer, SOUND_BUFFER_ADDR, SOUND_BUFFER_SIZE, MemOp(MEMOP_REGION_SYSTEM | MEMOP_ALLOC), MemPerm(MEMPERM_READ | MEMPERM_WRITE));
         if (R_FAILED(ret) || !soundBuffer)
         OSD::Notify("alloc soundBuffer failed");
@@ -185,9 +181,6 @@ exit:
             {
                 MemInfo info;
                 PageInfo out;
-                svcQueryMemory(&info, &out, SOC_BUFFER_ADDR);
-                if (info.state != MemState::MEMSTATE_FREE)
-                svcControlMemoryUnsafe(nullptr, SOC_BUFFER_ADDR, SOC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));
                 svcQueryMemory(&info, &out, SOUND_BUFFER_ADDR);
                 if (info.state != MemState::MEMSTATE_FREE)
                 svcControlMemoryUnsafe(nullptr, SOUND_BUFFER_ADDR, SOUND_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));
@@ -195,7 +188,6 @@ exit:
                 if (info.state != MemState::MEMSTATE_FREE)
                 svcControlMemoryUnsafe(nullptr, MIC_BUFFER_ADDR, MIC_BUFFER_SIZE, MEMOP_FREE, MemPerm(0));
                 micExit();
-                socExit();
             }
         }
     }

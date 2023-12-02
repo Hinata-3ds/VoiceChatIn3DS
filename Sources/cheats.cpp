@@ -63,6 +63,8 @@ namespace CTRPluginFramework
             int received = soc.Receive(receivedSoundBuffer, sizeof(receivedSoundBuffer),0);
             if(received == 1 || received == 0)
                 continue;
+            else 
+                //console.push_back("受信に成功しました！\n");
 
             receivedData[currentIndex].insert(receivedData[currentIndex].end(), receivedSoundBuffer, receivedSoundBuffer + received);       
         }
@@ -76,41 +78,35 @@ namespace CTRPluginFramework
     {
         svcCreateEvent(&sendEvent, RESET_ONESHOT);
         svcClearEvent(sendEvent);
-        
-
         Handle handles[] = {exitThreadEvent, sendEvent};
         
-            while (1)
-            {
-                Result res;
-                static u8 sendBuffer[4096];
-                s32 index;
+        while (1)
+        {
+            Result res;
+            s32 index;
 
-                if ((res = svcWaitSynchronizationN(&index, handles, 2, false, 1)) != 0x09401BFE && R_SUCCEEDED(res)) {
-                    if (index == 0)
-                        break;
-
-                    svcClearEvent(sendEvent);
-                    sendData.clear();
-                }
+            if (R_SUCCEEDED(svcWaitSynchronizationN(&index, handles, 2, false, 1))) {
+                if (index == 0)
+                    break;
 
                 u32 micBuffer_readpos = micBuffer_pos;
                 micBuffer_pos = micGetLastSampleOffset();
-                while (audioBuffer_pos < SOUND_BUFFER_SIZE && micBuffer_readpos != micBuffer_pos) {
-                    sendBuffer[audioBuffer_pos++] = micBuffer[micBuffer_readpos];
-                    micBuffer_readpos = (micBuffer_readpos + 1) % MIC_BUFFER_SIZE;
-                }
+                soundBuffer[audioBuffer_pos++] = micBuffer[micBuffer_readpos];
+                micBuffer_readpos = (micBuffer_readpos + 1) % MIC_BUFFER_SIZE;
+                
 
-                int SendByte = soc.Send(sendBuffer, audioBuffer_pos, 0); // sendBufferを送信
+                int SendByte = soc.Send(soundBuffer, 4096, 0); // sendBufferを送信
 
                 if (SendByte == 1 || SendByte == 0) {
-                    svcSignalEvent(stopSendEvent);
                     continue;
                 }
-
-                sendData.insert(sendData.end(), sendBuffer, sendBuffer + SendByte);
-                svcSignalEvent(restartReceiveEvent);
+                else{
+                    //console.push_back("送信に成功しました！\n");
+                    svcSignalEvent(stopSendEvent);
+                }
+                sendData.insert(sendData.end(), soundBuffer, soundBuffer + SendByte);
             }
+        }
         svcCloseHandle(sendEvent);
 
         svcExitThread();
@@ -119,8 +115,8 @@ namespace CTRPluginFramework
     void  ParentThread(void *arg)
     {
         Result res  = RL_SUCCESS;
-        svcCreateEvent(&exitThreadEvent, RESET_ONESHOT);
-        svcCreateEvent(&stopSendEvent, RESET_ONESHOT);
+        svcCreateEvent(&exitThreadEvent, RESET_STICKY);
+        svcCreateEvent(&stopSendEvent, RESET_STICKY);
         static ThreadEx sendThread(SendVoiceThread, 4096, 0x30, -1);
         static ThreadEx recvThread(RecvVoiceThread, 4096, 0x30, -1);
 
@@ -166,11 +162,14 @@ namespace CTRPluginFramework
        
         if(R_FAILED(MICU_StartSampling(MICU_ENCODING_PCM16_SIGNED, MICU_SAMPLE_RATE_16360, 0, micGetSampleDataSize(), true)))
             console.push_back("サンプリングを開始することができませんでした。\n");
-        else
+        else{
             console.push_back("サンプリングを開始しました。\n");
+        }
 
         while(1)
         {   
+            if(R_SUCCEEDED(svcWaitSynchronization(stopSendEvent, U64_MAX)))
+                svcSignalEvent(restartReceiveEvent);
             std::vector<u8> tempData = receivedData[currentIndex];
 
             u32 address = reinterpret_cast<u32>(tempData.data());
@@ -193,9 +192,10 @@ namespace CTRPluginFramework
 
             if (R_FAILED(ncsndPlaySound(0x8, &receivedSound)))
                 console.push_back("受信した音声データの再生に失敗しました\n");
-            else 
+            else {
                 svcSignalEvent(sendEvent);
-            
+                
+            }
         }
         svcSignalEvent(exitThreadEvent);
         svcExitThread();
