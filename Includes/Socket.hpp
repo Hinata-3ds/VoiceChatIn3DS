@@ -8,7 +8,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <3ds.h>
-
+#include <CTRPluginFramework.hpp>
 
 namespace CTRPluginFramework
 {
@@ -23,18 +23,14 @@ namespace CTRPluginFramework
         int connectSocket(const struct sockaddr *addr, socklen_t addrlen);
         int bindSocket(const struct sockaddr *addr, socklen_t addrlen);
         int listenSocket(int backlog);
-        int acceptConnection(struct sockaddr *addr, socklen_t *addrlen);
+        Result acceptConnection(struct sockaddr *addr, socklen_t *addrlen);
         int closeSocket();
+        int getNewAccept() const;
 
     private:
         int _socket;
+        int _newAccept;
     };
-
-    // Implementations
-    Socket::Socket() : _socket(-1) {}
-
-    Socket::~Socket() {
-        closeSocket();
-    }
 }
+
 #endif

@@ -15,9 +15,8 @@ constexpr u32 MIC_BUFFER_SIZE = 0x30000;
 namespace CTRPluginFramework
 {
     using StringVector = std::vector<std::string>;
-    void InputIPAddressAndPort( MenuEntry *entry );
-    void VoiceChatServer( MenuEntry *entry );
-    void VoiceChatClient( MenuEntry *entry );
-    
+    void voiceChatServer( MenuEntry *entry );
+    void voiceChatClient( MenuEntry *entry );
+    void InputIPAddressAndPort(MenuEntry *entry);    
 }
 #endif
