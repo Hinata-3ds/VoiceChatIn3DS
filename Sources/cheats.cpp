@@ -36,7 +36,6 @@ namespace CTRPluginFramework
 
 
     bool  CloseGameMicHandle( void );
-    int   InputIPAddressAndPort( std::string& serverIP, int& port );
 
     void  RecvVoiceThread(void *arg)
     {
@@ -49,6 +48,7 @@ namespace CTRPluginFramework
         {
             Result res;
             static u8 receivedSoundBuffer[4096];
+
             s32 index;
             if(res = svcWaitSynchronizationN(&index, handles, 2, false, 1) != 0x09401BFE && R_SUCCEEDED(res))
             {
@@ -82,31 +82,37 @@ namespace CTRPluginFramework
         {
             Result res;
             s32 index;
-
-            if (R_SUCCEEDED(svcWaitSynchronizationN(&index, handles, 2, false, 1))) {
-                if (index == 0)
-                    break;
+            u32 micBuffer_pos = 0;
+            if (R_SUCCEEDED(svcWaitSynchronizationN(&index, handles, 2, false, 1))) 
+            {
+                if (index == 0) {
+                    svcCloseHandle(sendEvent);
+                    svcExitThread();
+                }
 
                 u32 micBuffer_readpos = micBuffer_pos;
                 micBuffer_pos = micGetLastSampleOffset();
-                soundBuffer[audioBuffer_pos++] = micBuffer[micBuffer_readpos];
-                micBuffer_readpos = (micBuffer_readpos + 1) % MIC_BUFFER_SIZE;
-                
 
-                int SendByte = soc.Send(soundBuffer, 4096, 0); // sendBufferを送信
+                while (true) {
+                    soundBuffer[audioBuffer_pos++] = micBuffer[micBuffer_readpos];
+                    micBuffer_readpos = (micBuffer_readpos + 1) % MIC_BUFFER_SIZE;
 
-                if (SendByte == -1 || SendByte == 0) {
-                    continue;
+                    int SendByte = soc.Send(soundBuffer, audioBuffer_pos, 0); // 一部のデータを送信する
+
+                    if (SendByte == -1 || SendByte == 0) {
+                        continue;
+                    } else {
+                        //console.push_back("送信に成功しました！\n");
+                        svcSignalEvent(stopSendEvent);
+                    }
+
+                    //audioBuffer_pos = 0; // バッファをリセットする
+
+                    // 1秒間スリープ
+                    Sleep(Milliseconds(1000));
                 }
-                else{
-                    svcSignalEvent(stopSendEvent);
-                }
-                sendData.insert(sendData.end(), soundBuffer, soundBuffer + SendByte);
             }
         }
-        svcCloseHandle(sendEvent);
-
-        svcExitThread();
     }
 
     void  ParentThread(void *arg)
@@ -156,42 +162,44 @@ namespace CTRPluginFramework
         if(init)
             console.push_back("ボイスチャットが開始されました\n");
         console.push_back(" 終了\n");
+        ncsndSetVolume(0x8, 1, 0);
+        ncsndSetRate(0x8, 16360, 1);
        
         if(R_FAILED(MICU_StartSampling(MICU_ENCODING_PCM16_SIGNED, MICU_SAMPLE_RATE_16360, 0, micGetSampleDataSize(), true)))
             console.push_back("サンプリングを開始することができませんでした。\n");
         else{
             console.push_back("サンプリングを開始しました。\n");
+            svcSignalEvent(sendEvent);
         }
 
         while(1)
         {   
             if(R_SUCCEEDED(svcWaitSynchronization(stopSendEvent, U64_MAX)))
-                svcSignalEvent(restartReceiveEvent);
-            std::vector<u8> tempData = receivedData[currentIndex];
+            {
+                svcFlushProcessDataCache(CUR_PROCESS_HANDLE, (u32)(uintptr_t)receivedData[currentIndex].data(), receivedData[currentIndex].size());
+                console.push_back(Utils::Format("sound size: %d\n", receivedData[currentIndex].size()));
 
-            u32 address = reinterpret_cast<u32>(tempData.data());
-            u32 size = tempData.size();
+                ncsndSound receivedSound;
+                ncsndInitializeSound(&receivedSound);
 
-            
-            ncsndSetVolume(0x8, 1, 0);
-            ncsndSetRate(0x8, 16360, 1);
-            svcFlushProcessDataCache(CUR_PROCESS_HANDLE, address, size);
-            ncsndSound receivedSound;
-            ncsndInitializeSound(&receivedSound);
+                receivedSound.isPhysAddr = true;
+                receivedSound.sampleData = (u8 *)svcConvertVAToPA((const void*)receivedData[currentIndex].data(), false);
+                receivedSound.totalSizeBytes = receivedData[currentIndex].size();
+                receivedSound.encoding = NCSND_ENCODING_PCM16;
+                receivedSound.sampleRate = 16360;
+                receivedSound.pan = 0.0;
+                receivedSound.volume = 1.0;
 
-            receivedSound.isPhysAddr = true;
-            receivedSound.sampleData = (u8 *)svcConvertVAToPA((const void*)receivedData[currentIndex].data(), false);
-            receivedSound.totalSizeBytes = receivedData[currentIndex].size();
-            receivedSound.encoding = NCSND_ENCODING_PCM16;
-            receivedSound.sampleRate = 16360;
-            receivedSound.pan = 0.0;
-            receivedSound.volume = 1.0;
+                if (R_FAILED(ncsndPlaySound(0x8, &receivedSound)))
+                    console.push_back("受信した音声データの再生に失敗しました\n");
+                else {
+                    svcSignalEvent(sendEvent);     
+                    //console.push_back("音声の再生に成功しました！");
+                }
 
-            if (R_FAILED(ncsndPlaySound(0x8, &receivedSound)))
-                console.push_back("受信した音声データの再生に失敗しました\n");
-            else {
-                svcSignalEvent(sendEvent);
-                console.push_back("音声の再生に成功しました！");
+                // 1秒待機
+                Sleep(Milliseconds(1000));
+                //svcSignalEvent(restartReceiveEvent);
             }
         }
         svcSignalEvent(exitThreadEvent);
