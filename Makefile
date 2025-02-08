@@ -13,8 +13,8 @@ TARGET		:= 	$(notdir $(CURDIR))
 PLGINFO 	:= 	CTRPluginFramework.plgInfo
 
 BUILD		:= 	Build
-INCLUDES	:= 	Includes
-SOURCES 	:= 	Sources
+INCLUDES	:= 	include
+SOURCES 	:= 	source
 
 #---------------------------------------------------------------------------------
 # options for code generation

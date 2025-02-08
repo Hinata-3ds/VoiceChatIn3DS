@@ -9,7 +9,7 @@
         {
             "name": "Library",
             "includePath": [
-                "${workspaceFolder}/Includes/**",
+                "${workspaceFolder}/include/**",
                 "${ctrulib}/include/**",
                 "${ctrpflib}/include/**"
             ],
@@ -19,7 +19,7 @@
             ],
             "browse": {
                 "path": [
-                    "${workspaceFolder}/Includes/**",
+                    "${workspaceFolder}/include/**",
                     "${ctrpflib}/include/**",
                     "${ctrulib}/include/**"
                 ],
