@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include "csvc.h"
-#include "C:/devkitPro/libctru/include/3ds/services/mic.h"
+#include "mic.h"
 #include "Led.hpp"
 #include "ncsnd.h"
 #include <vector>
@@ -97,18 +97,14 @@ namespace CTRPluginFramework
                     soundBuffer[audioBuffer_pos++] = micBuffer[micBuffer_readpos];
                     micBuffer_readpos = (micBuffer_readpos + 1) % MIC_BUFFER_SIZE;
 
-                    int SendByte = soc.Send(soundBuffer, audioBuffer_pos, 0); // 一部のデータを送信する
+                    int SendByte = soc.Send(soundBuffer, audioBuffer_pos, 0);
 
                     if (SendByte == -1 || SendByte == 0) {
                         continue;
                     } else {
-                        //console.push_back("送信に成功しました！\n");
                         svcSignalEvent(stopSendEvent);
                     }
 
-                    //audioBuffer_pos = 0; // バッファをリセットする
-
-                    // 1秒間スリープ
                     Sleep(Milliseconds(1000));
                 }
             }
@@ -194,12 +190,9 @@ namespace CTRPluginFramework
                     console.push_back("受信した音声データの再生に失敗しました\n");
                 else {
                     svcSignalEvent(sendEvent);     
-                    //console.push_back("音声の再生に成功しました！");
                 }
 
-                // 1秒待機
                 Sleep(Milliseconds(1000));
-                //svcSignalEvent(restartReceiveEvent);
             }
         }
         svcSignalEvent(exitThreadEvent);
@@ -374,11 +367,9 @@ namespace CTRPluginFramework
 
         std::string serverIP = ipAndPort.substr(0, pos);
         std::string portStr = ipAndPort.substr(pos + 1);
-
-        // サーバーIPアドレスの保存
+        
         g_serverIP = serverIP;
 
-        // ポート番号の保存
         try {
             g_port = std::stoi(portStr);
         } catch (const std::exception &exp) {
@@ -387,6 +378,5 @@ namespace CTRPluginFramework
         }
 
         MessageBox("IP Address and Port Number saved")();
-        // entry->SetGameFunc(); 後で
     }
 }

@@ -1,20 +1,16 @@
 #include "Helpers/KeySequence.hpp"
 
-namespace CTRPluginFramework
-{
+namespace CTRPluginFramework {
     KeySequence::KeySequence(KeyVector sequence) : 
     _sequence(sequence), _indexInSequence(0)
     {            
     }
 
-    bool  KeySequence::operator()(void)
-    {
-        if (Controller::IsKeyDown(_sequence[_indexInSequence]))
-        {
+    bool  KeySequence::operator()(void) {
+        if (Controller::IsKeyDown(_sequence[_indexInSequence])) {
             _indexInSequence++;
 
-            if (_indexInSequence >= _sequence.size())
-            {
+            if (_indexInSequence >= _sequence.size()) {
                 _indexInSequence = 0;
                 return (true);
             }
@@ -22,12 +18,11 @@ namespace CTRPluginFramework
             _timer.Restart();
         }
 
-        if (_timer.HasTimePassed(Seconds(1.f)))
-        {
+        if (_timer.HasTimePassed(Seconds(1.f))) {
             _indexInSequence = 0;
             _timer.Restart();
         }
 
-        return (false);
+        return false;
     }
 }

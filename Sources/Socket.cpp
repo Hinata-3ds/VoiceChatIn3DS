@@ -6,8 +6,7 @@
 #include "types.h"
 #include "Socket.hpp"
 
-namespace CTRPluginFramework
-{
+namespace CTRPluginFramework {
     Socket::Socket() : _socket(-1), _newAccept(-1) {}
 
     Socket::~Socket() {
@@ -68,8 +67,8 @@ namespace CTRPluginFramework
             throw std::runtime_error("Error accepting connection");
             return _newAccept;
         }
-        closeSocket(); // Close the previous socket before creating a new one.
-        _socket = _newAccept; // Use the accepted socket for subsequent operations.
+        closeSocket();
+        _socket = _newAccept; 
         return _newAccept;
     }
 

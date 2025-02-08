@@ -1,12 +1,10 @@
 #include "Patches.hpp"
 #include "Debug.hpp"
 
-namespace CTRPluginFramework
-{
+namespace CTRPluginFramework {
     extern "C" Handle SOCU_handle;
 
-    static Result SOCU_Shutdown(void)
-    {
+    static Result SOCU_Shutdown(void) {
         Result ret = 0;
         u32 *cmdbuf = getThreadCommandBuffer();
 
@@ -20,10 +18,7 @@ namespace CTRPluginFramework
         return cmdbuf[1];
     }
 
-    static u32 SocketInitHook(u32 mem, u32 size)
-    {
-        // TODO: different implementation is needed
-        //       because SOCU_Shutdown closes all sockets.
+    static u32 SocketInitHook(u32 mem, u32 size) {
         Result res = SOCU_Shutdown();
 
         DEBUG_NOTIFY(Utils::Format("3GX SOCU_Shutdown: %08lX", res));
@@ -33,14 +28,11 @@ namespace CTRPluginFramework
         return HookContext::GetCurrent().OriginalFunction<u32>(mem, size);
     }
 
-    static u32 SocketExitHook(u32 returnVal)
-    {
+    static u32 SocketExitHook(u32 returnVal) {
         Result res;
 
-        // Close 3gx socket
         socExit();
 
-        // Re-initialize 3gx socket
         res = socInit((u32 *)SOCKET_SHAREDMEM_ADDR, SERVICE_SHAREDMEM_SIZE);
 
         DEBUG_NOTIFY(Utils::Format("3GX SOCU_Initialize: %08lX", res));
@@ -49,8 +41,7 @@ namespace CTRPluginFramework
         return HookContext::GetCurrent().OriginalFunction<u32>(returnVal);
     }
 
-    bool InstallSocketHooks(void)
-    {
+    bool InstallSocketHooks(void) {
         static std::vector<u32> socInitPattern = {
             0xE92D4070,
             0xE1A05000,
@@ -75,30 +66,25 @@ namespace CTRPluginFramework
 
         u32 addr = Utils::Search(0x00100000, Process::GetTextSize(), socInitPattern);
 
-        if (addr)
-        {
+        if (addr) {
             initHook.InitializeForMitm(addr, (u32)SocketInitHook);
             initHook.Enable();
 
             DEBUG_NOTIFYC("Game socInit hook has been successfully installed", Color::Lime);
         }
-        else
-        {
+        else {
             DEBUG_NOTIFYC("Game socInit not found", Color::Red);
             return false;
         }
 
         addr = Utils::Search(0x00100000, Process::GetTextSize(), socExitPattern);
 
-        if (addr)
-        {
+        if (addr) {
             exitHook.InitializeForMitm(addr + 0x40, (u32)SocketExitHook);
             exitHook.Enable();
 
             DEBUG_NOTIFYC("Game socExit hook has been successfully installed", Color::Lime);
-        }
-        else
-        {
+        } else {
             DEBUG_NOTIFYC("Game socExit not found", Color::Red);
             return false;
         }
