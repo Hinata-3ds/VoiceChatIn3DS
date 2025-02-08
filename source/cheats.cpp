@@ -15,8 +15,7 @@
 namespace CTRPluginFramework 
 {
     static Socket            soc;
-    std::vector<std::string> console    = {};
-    //std::vector<std::string> console = {};
+    std::vector<std::string> console = {};
 
     std::vector<u8> sendData;
     std::vector<u8> receivedData[2];
